@@ -6,7 +6,7 @@
 #include <engine/map.h>
 #include <engine/server.h>
 #include <engine/storage.h>
-
+#include <engine/mqtt.h>
 #include <engine/server/antibot.h>
 #include <engine/server/databases/connection.h>
 #include <engine/server/server.h>
@@ -39,6 +39,13 @@ void HandleSigIntTerm(int Param)
 	// Exit the next time a signal is received
 	signal(SIGINT, SIG_DFL);
 	signal(SIGTERM, SIG_DFL);
+}
+
+void CreateMqttAsync(IMqtt *pMqtt)
+{
+	dbg_msg("mqtt", "Starting MQTT thread");
+	pMqtt->Init();
+	pMqtt->Run();
 }
 
 int main(int argc, const char **argv)
@@ -146,6 +153,9 @@ int main(int argc, const char **argv)
 	IGameServer *pGameServer = CreateGameServer();
 	pKernel->RegisterInterface(pGameServer);
 
+	IMqtt *pMqtt = CreateMqtt("tcp://broker.hivemq.com:1883", "DDNetServer");
+	pKernel->RegisterInterface(pMqtt);
+
 	pEngine->Init();
 	pConsole->Init();
 	pConfigManager->Init();
@@ -193,6 +203,9 @@ int main(int argc, const char **argv)
 	auto pServerLogger = std::make_shared<CServerLogger>(pServer);
 	pEngine->SetAdditionalLogger(pServerLogger);
 
+	std::thread MqttThread{CreateMqttAsync, pMqtt};
+	MqttThread.detach();
+	pServer->setMqtt(pMqtt);
 	// run the server
 	log_trace("server", "initialization finished after %.2fms, starting...", (time_get() - MainStart) * 1000.0f / (float)time_freq());
 	int Ret = pServer->Run();

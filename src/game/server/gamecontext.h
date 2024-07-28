@@ -5,6 +5,7 @@
 
 #include <engine/console.h>
 #include <engine/server.h>
+#include <engine/mqtt.h>
 
 #include <game/collision.h>
 #include <game/generated/protocol.h>
@@ -18,6 +19,7 @@
 
 #include <memory>
 #include <string>
+#include <nlohmann/json.hpp>
 
 /*
 	Tick
@@ -57,6 +59,7 @@ class IAntibot;
 class IGameController;
 class IEngine;
 class IStorage;
+class IMqtt;
 struct CAntibotRoundData;
 struct CScoreRandomMapResult;
 
@@ -81,6 +84,7 @@ class CGameContext : public IGameServer
 	IConfigManager *m_pConfigManager;
 	CConfig *m_pConfig;
 	IConsole *m_pConsole;
+	IMqtt *m_pMqtt;
 	IEngine *m_pEngine;
 	IStorage *m_pStorage;
 	IAntibot *m_pAntibot;
@@ -167,7 +171,9 @@ public:
 	CTuningParams *TuningList() { return &m_aTuningList[0]; }
 	IAntibot *Antibot() { return m_pAntibot; }
 	CTeeHistorian *TeeHistorian() { return &m_TeeHistorian; }
+	IMqtt *Mqtt() { return m_pMqtt; }
 	bool TeeHistorianActive() const { return m_TeeHistorianActive; }
+    using json = nlohmann::json;
 
 	CGameContext();
 	CGameContext(int Reset);
@@ -507,6 +513,7 @@ private:
 	static void ConFreezeHammer(IConsole::IResult *pResult, void *pUserData);
 	static void ConUnFreezeHammer(IConsole::IResult *pResult, void *pUserData);
 
+	static void ConLogin(IConsole::IResult *pResult, void *pUserData);
 	CCharacter *GetPracticeCharacter(IConsole::IResult *pResult);
 
 	enum

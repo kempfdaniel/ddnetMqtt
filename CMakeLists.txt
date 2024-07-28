@@ -95,6 +95,7 @@ elseif(TARGET_OS STREQUAL "mac")
   set(AUTO_VULKAN_BACKEND OFF)
 endif()
 
+option(MQTTSERVICES "Enable MQTT services" ON)
 option(WEBSOCKETS "Enable websockets support" OFF)
 option(MYSQL "Enable mysql support" OFF)
 option(TEST_MYSQL "Test mysql support in unit tests (also sets -DMYSQL=ON)" OFF)
@@ -282,7 +283,7 @@ if(NOT MSVC AND NOT HAIKU)
   endif()
 
   # Disable exceptions as DDNet does not use them.
-  add_cxx_compiler_flag_if_supported(OUR_FLAGS -fno-exceptions)
+  #add_cxx_compiler_flag_if_supported(OUR_FLAGS -fno-exceptions)
 
   # Inaccurate floating point numbers cause problems on mingw-w64-gcc when
   # compiling for x86, might cause problems elsewhere. So don't store floats
@@ -529,6 +530,7 @@ find_package(Python3)
 find_package(Rust)
 find_package(SDL2)
 find_package(SQLite3)
+find_package(PahoMqttCpp REQUIRED)
 if(DISCORD)
   find_package(DiscordSdk)
 endif()
@@ -634,6 +636,10 @@ if(CLIENT AND VULKAN)
   show_dependency_status("Vulkan" VULKAN)
 endif()
 
+if(MQTTSERVICES)
+  show_dependency_status("PahoMqttCpp" PahoMqttCpp)
+endif()
+
 if(NOT(CURL_FOUND))
   message(SEND_ERROR "You must install Curl to compile ${CMAKE_PROJECT_NAME}")
 endif()
@@ -705,6 +711,10 @@ endif()
 
 if(CLIENT AND VULKAN AND NOT(VULKAN_FOUND))
   message(SEND_ERROR "You must install Vulkan libraries to compile the ${CMAKE_PROJECT_NAME} client")
+endif()
+
+if(MQTTSERVICES AND NOT(PahoMqttCpp_FOUND))
+  message(SEND_ERROR "You must install PahoMqttCpp to compile the ${CMAKE_PROJECT_NAME} with MQTT services")
 endif()
 
 if(TARGET_OS STREQUAL "windows")
@@ -1910,6 +1920,7 @@ set_src(ENGINE_INTERFACE GLOB src/engine
   keys.h
   map.h
   message.h
+  mqtt.h
   notifications.h
   rust.h
   server.h
@@ -2522,6 +2533,11 @@ if(SERVER)
     antibot_null.cpp
   )
 
+  set_src(MQTTSERVICES GLOB_RECURSE src/engine/server
+    mqtt.cpp
+    mqtt.h
+  )
+
   set_src(ENGINE_SERVER GLOB_RECURSE src/engine/server
     antibot.cpp
     antibot.h
@@ -2607,6 +2623,9 @@ if(SERVER)
     "src/game/generated/wordlist.h"
   )
   set(SERVER_SRC ${ENGINE_SERVER} ${GAME_SERVER} ${GAME_GENERATED_SERVER})
+  if(MQTTSERVICES)
+    set(SERVER_SRC ${SERVER_SRC} ${MQTTSERVICES})
+  endif()
   if(TARGET_OS STREQUAL "windows")
     set(SERVER_ICON "other/icons/DDNet-Server.rc")
   else()
@@ -2626,7 +2645,7 @@ if(SERVER)
     ${MYSQL_LIBRARIES}
     ${TARGET_ANTIBOT}
     rust_engine_shared
-
+    PahoMqttCpp::paho-mqttpp3
     ${LIBS}
   )
 
@@ -3400,6 +3419,9 @@ foreach(target ${TARGETS_OWN})
   if(WEBSOCKETS)
     target_compile_definitions(${target} PRIVATE CONF_WEBSOCKETS)
     target_include_directories(${target} SYSTEM PRIVATE ${WEBSOCKETS_INCLUDE_DIRS})
+  endif()
+  if(MQTTSERVICES)
+    target_compile_definitions(${target} PRIVATE CONF_MQTTSERVICES)
   endif()
   if(UPNP)
     target_compile_definitions(${target} PRIVATE CONF_UPNP)

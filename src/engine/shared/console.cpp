@@ -312,6 +312,11 @@ LOG_COLOR ColorToLogColor(ColorRGBA Color)
 
 void CConsole::Print(int Level, const char *pFrom, const char *pStr, ColorRGBA PrintColor) const
 {
+	json response;
+	response["level"] = Level;
+	response["from"] = pFrom;
+	response["str"] = pStr;
+	m_pMqtt->Publish(CHANNEL_CONSOLE, response);
 	LEVEL LogLevel = IConsole::ToLogLevel(Level);
 	// if console colors are not enabled or if the color is pure white, use default terminal color
 	if(g_Config.m_ConsoleEnableColors && mem_comp(&PrintColor, &gs_ConsoleDefaultColor, sizeof(ColorRGBA)) != 0)
@@ -592,6 +597,10 @@ CConsole::CCommand *CConsole::FindCommand(const char *pName, int FlagMask)
 
 void CConsole::ExecuteLine(const char *pStr, int ClientId, bool InterpretSemicolons)
 {
+	json response;
+	response["command"] = pStr;
+	response["clientid"] = ClientId;
+	m_pMqtt->Publish(CHANNEL_RCON, response);
 	CConsole::ExecuteLineStroked(1, pStr, ClientId, InterpretSemicolons); // press it
 	CConsole::ExecuteLineStroked(0, pStr, ClientId, InterpretSemicolons); // then release it
 }
@@ -612,6 +621,9 @@ bool CConsole::ExecuteFile(const char *pFilename, int ClientId, bool LogFailure,
 			return false;
 
 	if(!m_pStorage)
+		return false;
+
+	if(!m_pMqtt)
 		return false;
 
 	// push this one to the stack
@@ -761,6 +773,8 @@ CConsole::CConsole(int FlagMask)
 	m_pTeeHistorianCommandUserdata = 0;
 
 	m_pStorage = 0;
+	m_pMqtt = 0;
+	m_IsMqtt = false;
 
 	// register some basic commands
 	Register("echo", "r[text]", CFGFLAG_SERVER, Con_Echo, this, "Echo the text");
@@ -803,6 +817,8 @@ CConsole::~CConsole()
 void CConsole::Init()
 {
 	m_pStorage = Kernel()->RequestInterface<IStorage>();
+	m_pMqtt = Kernel()->RequestInterface<IMqtt>();
+	m_IsMqtt = m_pMqtt != 0;
 }
 
 void CConsole::ParseArguments(int NumArgs, const char **ppArguments)

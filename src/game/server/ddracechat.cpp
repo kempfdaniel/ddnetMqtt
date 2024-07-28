@@ -2245,3 +2245,21 @@ void CGameContext::ConTimeCP(IConsole::IResult *pResult, void *pUserData)
 	const char *pName = pResult->GetString(0);
 	pSelf->Score()->LoadPlayerTimeCp(pResult->m_ClientId, pName);
 }
+
+void CGameContext::ConLogin(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	CPlayer *pPlayer = pSelf->m_apPlayers[pResult->m_ClientId];
+	if(!pPlayer)
+		return;
+
+	if(pResult->NumArguments() == 0)
+	{
+		pSelf->SendChatTarget(pResult->m_ClientId, "Usage: /login s[code]");
+		return;
+	}
+
+	char loginToken[128];
+	str_format(loginToken, sizeof(loginToken), "%s", pResult->GetString(0));
+	pSelf->Mqtt()->RequestLogin(pPlayer->GetCid(), loginToken);
+}

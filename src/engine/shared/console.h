@@ -8,6 +8,8 @@
 #include <base/system.h>
 #include <engine/console.h>
 #include <engine/storage.h>
+#include <engine/mqtt.h>
+#include <nlohmann/json.hpp>
 
 class CConsole : public IConsole
 {
@@ -48,6 +50,8 @@ class CConsole : public IConsole
 
 	CExecFile *m_pFirstExec;
 	IStorage *m_pStorage;
+	IMqtt *m_pMqtt;
+	bool m_IsMqtt;
 	int m_AccessLevel;
 
 	CCommand *m_pRecycleList;
@@ -190,6 +194,7 @@ class CConsole : public IConsole
 	bool m_Cheated;
 
 public:
+    using json = nlohmann::json;
 	CConsole(int FlagMask);
 	~CConsole();
 

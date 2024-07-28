@@ -25,6 +25,7 @@ IGameController::IGameController(class CGameContext *pGameServer) :
 	m_pGameServer = pGameServer;
 	m_pConfig = m_pGameServer->Config();
 	m_pServer = m_pGameServer->Server();
+	m_pMqtt = m_pGameServer->Mqtt();
 	m_pGameType = "unknown";
 
 	//

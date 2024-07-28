@@ -2041,6 +2041,7 @@ void CGameContext::OnMessage(int MsgId, CUnpacker *pUnpacker, int ClientId)
 
 	if(Server()->ClientIngame(ClientId))
 	{
+
 		switch(MsgId)
 		{
 		case NETMSGTYPE_CL_SAY:
@@ -2142,6 +2143,12 @@ void CGameContext::OnSayNetMessage(const CNetMsg_Cl_Say *pMsg, int ClientId, con
 	else
 		Team = TEAM_ALL;
 
+	json result;
+	result["cid"] = ClientId;
+	result["name"] = Server()->ClientName(ClientId);
+	result["message"] = pMsg->m_pMessage;
+	result["team"] = Team;
+	m_pMqtt->Publish(CHANNEL_CHAT, result);
 	if(pMsg->m_pMessage[0] == '/')
 	{
 		if(str_startswith_nocase(pMsg->m_pMessage + 1, "w "))
@@ -2225,6 +2232,15 @@ void CGameContext::OnCallVoteNetMessage(const CNetMsg_Cl_CallVote *pMsg, int Cli
 	{
 		str_copy(aReason, pMsg->m_pReason, sizeof(aReason));
 	}
+
+	json result;
+	result["cid"] = ClientId;
+	result["name"] = Server()->ClientName(ClientId);
+	result["value"] = pMsg->m_pValue;
+	result["victim"] = str_comp_nocase(pMsg->m_pType, "option") == 0 ? "" : Server()->ClientName(str_toint(pMsg->m_pValue));
+	result["type"] = pMsg->m_pType;
+	result["aReason"] = aReason;
+	m_pMqtt->Publish(CHANNEL_VOTE, result);
 
 	if(str_comp_nocase(pMsg->m_pType, "option") == 0)
 	{
@@ -2479,6 +2495,11 @@ void CGameContext::OnVoteNetMessage(const CNetMsg_Cl_Vote *pMsg, int ClientId)
 	pPlayer->m_VotePos = ++m_VotePos;
 	m_VoteUpdate = true;
 
+	json result;
+	result["cid"] = ClientId;
+	result["name"] = Server()->ClientName(ClientId);
+	result["vote"] = pMsg->m_Vote;
+	m_pMqtt->Publish(CHANNEL_VOTE, result);
 	CNetMsg_Sv_YourVote Msg = {pMsg->m_Vote};
 	Server()->SendPackMsg(&Msg, MSGFLAG_VITAL, ClientId);
 }
@@ -2595,10 +2616,39 @@ void CGameContext::OnSetSpectatorModeNetMessage(const CNetMsg_Cl_SetSpectatorMod
 void CGameContext::OnChangeInfoNetMessage(const CNetMsg_Cl_ChangeInfo *pMsg, int ClientId)
 {
 	CPlayer *pPlayer = m_apPlayers[ClientId];
+
 	if(g_Config.m_SvSpamprotection && pPlayer->m_LastChangeInfo && pPlayer->m_LastChangeInfo + Server()->TickSpeed() * g_Config.m_SvInfoChangeDelay > Server()->Tick())
 		return;
 
 	bool SixupNeedsUpdate = false;
+	json result;
+
+	if (pPlayer->GetCharacter())
+	{
+	result["cid"] = ClientId;
+	result["name"] = Server()->ClientName(ClientId);
+	result["clan"] = Server()->ClientClan(ClientId);
+	result["country"] = Server()->ClientCountry(ClientId);
+	result["old"]["name"] = Server()->ClientName(ClientId);
+	result["old"]["clan"] = Server()->ClientClan(ClientId);
+	result["old"]["country"] = Server()->ClientCountry(ClientId);
+	result["old"]["skin"] = pPlayer->m_TeeInfos.m_aSkinName;
+	result["old"]["useCustomColor"] = pPlayer->m_TeeInfos.m_UseCustomColor;
+	result["old"]["colorBody"] = pPlayer->m_TeeInfos.m_ColorBody;
+	result["old"]["colorFeet"] = pPlayer->m_TeeInfos.m_ColorFeet;
+	}
+	else
+	{
+		result["cid"] = ClientId;
+		result["name"] = Server()->ClientName(ClientId);
+		result["clan"] = Server()->ClientClan(ClientId);
+		result["country"] = Server()->ClientCountry(ClientId);
+		result["old"]["skin"] = "";
+		result["old"]["useCustomColor"] = false;
+		result["old"]["colorBody"] = 0;
+		result["old"]["colorFeet"] = 0;
+
+	}
 
 	pPlayer->m_LastChangeInfo = Server()->Tick();
 	pPlayer->UpdatePlaytime();
@@ -2694,6 +2744,17 @@ void CGameContext::OnChangeInfoNetMessage(const CNetMsg_Cl_ChangeInfo *pMsg, int
 
 		Server()->SendPackMsg(&Msg, MSGFLAG_VITAL | MSGFLAG_NORECORD, -1);
 	}
+
+
+	result["new"]["name"] = Server()->ClientName(ClientId);
+	result["new"]["clan"] = Server()->ClientClan(ClientId);
+	result["new"]["country"] = Server()->ClientCountry(ClientId);
+	result["new"]["skin"] = pMsg->m_pSkin;
+	result["new"]["useCustomColor"] = pMsg->m_UseCustomColor;
+	result["new"]["colorBody"] = pMsg->m_ColorBody;
+	result["new"]["colorFeet"] = pMsg->m_ColorFeet;
+
+	m_pMqtt->Publish(CHANNEL_PLAYERINFO, result);
 
 	Server()->ExpireServerInfo();
 }
@@ -3535,6 +3596,7 @@ void CGameContext::OnConsoleInit()
 	m_pConsole = Kernel()->RequestInterface<IConsole>();
 	m_pEngine = Kernel()->RequestInterface<IEngine>();
 	m_pStorage = Kernel()->RequestInterface<IStorage>();
+	m_pMqtt = Kernel()->RequestInterface<IMqtt>();
 
 	Console()->Register("tune", "s[tuning] ?f[value]", CFGFLAG_SERVER | CFGFLAG_GAME, ConTuneParam, this, "Tune variable to value or show current value");
 	Console()->Register("toggle_tune", "s[tuning] f[value 1] f[value 2]", CFGFLAG_SERVER, ConToggleTuneParam, this, "Toggle tune variable");
@@ -3732,6 +3794,7 @@ void CGameContext::RegisterChatCommands()
 	Console()->Register("ninja", "", CFGFLAG_CHAT | CMDFLAG_PRACTICE, ConPracticeNinja, this, "Makes you a ninja");
 	Console()->Register("unninja", "", CFGFLAG_CHAT | CMDFLAG_PRACTICE, ConPracticeUnNinja, this, "Removes ninja from you");
 	Console()->Register("kill", "", CFGFLAG_CHAT | CFGFLAG_SERVER, ConProtectedKill, this, "Kill yourself when kill-protected during a long game (use f1, kill for regular kill)");
+	Console()->Register("login","?s[code]",CFGFLAG_CHAT | CFGFLAG_SERVER, ConLogin, this, "Login into your account. If you dont have any account, go to https://awb-clan.com or https://discord.awb-clan.com");
 }
 
 void CGameContext::OnInit(const void *pPersistentData)
@@ -3745,6 +3808,7 @@ void CGameContext::OnInit(const void *pPersistentData)
 	m_pEngine = Kernel()->RequestInterface<IEngine>();
 	m_pStorage = Kernel()->RequestInterface<IStorage>();
 	m_pAntibot = Kernel()->RequestInterface<IAntibot>();
+	m_pMqtt = Kernel()->RequestInterface<IMqtt>();
 	m_World.SetGameServer(this);
 	m_Events.SetGameServer(this);
 
