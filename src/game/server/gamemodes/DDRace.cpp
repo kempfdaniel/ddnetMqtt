@@ -123,12 +123,19 @@ void CGameControllerDDRace::OnPlayerConnect(CPlayer *pPlayer)
 	// LoadScoreThreaded() instead
 	Score()->LoadPlayerData(ClientId);
 
+
 	if(!Server()->ClientPrevIngame(ClientId))
 	{
 		char aBuf[512];
 		str_format(aBuf, sizeof(aBuf), "'%s' entered and joined the %s", Server()->ClientName(ClientId), GetTeamName(pPlayer->GetTeam()));
 		GameServer()->SendChat(-1, TEAM_ALL, aBuf, -1, CGameContext::CHAT_SIX);
-
+#ifdef CONF_MQTTSERVICES
+		json response;
+		response["type"] = "join";
+		response["player"] = ClientId;
+		response["name"] = Server()->ClientName(ClientId);
+		GameServer()->Mqtt()->Publish(CHANNEL_INGAME, response);
+#endif
 		GameServer()->SendChatTarget(ClientId, "DDraceNetwork Mod. Version: " GAME_VERSION);
 		GameServer()->SendChatTarget(ClientId, "please visit DDNet.org or say /info and make sure to read our /rules");
 	}
@@ -140,7 +147,13 @@ void CGameControllerDDRace::OnPlayerDisconnect(CPlayer *pPlayer, const char *pRe
 	bool WasModerator = pPlayer->m_Moderating && Server()->ClientIngame(ClientId);
 
 	IGameController::OnPlayerDisconnect(pPlayer, pReason);
-
+#ifdef CONF_MQTTSERVICES
+		json response;
+		response["type"] = "leave";
+		response["player"] = ClientId;
+		response["name"] = Server()->ClientName(ClientId);
+		GameServer()->Mqtt()->Publish(CHANNEL_INGAME, response);
+#endif
 	if(!GameServer()->PlayerModerating() && WasModerator)
 		GameServer()->SendChat(-1, TEAM_ALL, "Server kick/spec votes are no longer actively moderated.");
 

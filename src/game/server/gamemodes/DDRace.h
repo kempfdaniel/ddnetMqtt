@@ -3,9 +3,16 @@
 #define GAME_SERVER_GAMEMODES_DDRACE_H
 
 #include <game/server/gamecontroller.h>
+#ifdef CONF_MQTTSERVICES
+#include <nlohmann/json.hpp>
+#endif
+
 
 class CGameControllerDDRace : public IGameController
 {
+#ifdef CONF_MQTTSERVICES
+	using json = nlohmann::json;
+#endif
 public:
 	CGameControllerDDRace(class CGameContext *pGameServer);
 	~CGameControllerDDRace();

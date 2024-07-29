@@ -6,6 +6,9 @@
 #include <game/server/gamecontext.h>
 #include <game/teamscore.h>
 
+#ifdef CONF_MQTTSERVICES
+#include <nlohmann/json.hpp>
+#endif
 class CCharacter;
 class CPlayer;
 struct CScoreSaveResult;
@@ -38,6 +41,10 @@ class CGameTeams
 	int m_aTeamUnfinishableKillTick[NUM_DDRACE_TEAMS];
 
 	class CGameContext *m_pGameContext;
+#ifdef CONF_MQTTSERVICES
+	using json = nlohmann::json;
+#endif
+
 
 	/**
 	* Kill the whole team.

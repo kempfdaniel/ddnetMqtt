@@ -7,6 +7,10 @@
 #include <engine/map.h>
 #include <engine/shared/protocol.h>
 #include <game/server/teams.h>
+#ifdef CONF_MQTTSERVICES
+#include <nlohmann/json.hpp>
+#endif
+
 
 struct CScoreLoadBestTimeResult;
 
@@ -29,6 +33,9 @@ class IGameController
 	#endif
 
 	CGameTeams m_Teams;
+#ifdef CONF_MQTTSERVICES
+	using json = nlohmann::json;
+#endif
 
 protected:
 	CGameContext *GameServer() const { return m_pGameServer; }

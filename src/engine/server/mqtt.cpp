@@ -72,7 +72,7 @@ void CMqtt::Init()
 
 		Subscribe(CHANNEL_RESPONSE);
 
-		dbg_msg("mqtt", "Connected to the MQTT broker");
+		dbg_msg("mqtt", "Connected to the MQTT broker with topic %s", prefix.c_str());
 		Publish(CHANNEL_SERVER, std::string("Connected to the MQTT broker"));
 	}
 	catch(const mqtt::exception &exc)
@@ -108,8 +108,7 @@ void CMqtt::Run()
 				}
 				m_missedMessages.clear();
 			}
-
-			std::this_thread::sleep_for(std::chrono::milliseconds(20));
+			//std::this_thread::sleep_for(std::chrono::milliseconds(20));
 		}
 	}
 	catch(const std::exception &e)
@@ -247,6 +246,8 @@ std::string CMqtt::GetChannelName(int channel)
 		return std::string(prefix) + "/playerinfo";
 	case CHANNEL_SERVERINFO:
 		return std::string(prefix) + "/serverinfo";
+	case CHANNEL_INGAME:
+		return std::string(prefix) + "/ingame";
 	default:
 		return std::string(prefix) + "/default";
 	}

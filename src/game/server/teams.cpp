@@ -83,6 +83,17 @@ void CGameTeams::OnCharacterStart(int ClientId)
 	{
 		if(TeamFlock(m_Core.Team(ClientId)) && (m_aTeamState[m_Core.Team(ClientId)] < TEAMSTATE_STARTED))
 			ChangeTeamState(m_Core.Team(ClientId), TEAMSTATE_STARTED);
+#ifdef CONF_MQTTSERVICES
+		if(pStartingChar->m_DDRaceState != DDRACE_STARTED)
+		{
+			json response;
+			response["event"] = "start";
+			response["clientid"] = ClientId;
+			response["name"] = Server()->ClientName(ClientId);
+			response["team"] = GameServer()->GetDDRaceTeam(ClientId);
+			GameServer()->Mqtt()->Publish(CHANNEL_INGAME, response);
+		}
+#endif
 
 		m_aTeeStarted[ClientId] = true;
 		pStartingChar->m_DDRaceState = DDRACE_STARTED;
@@ -159,6 +170,17 @@ void CGameTeams::OnCharacterStart(int ClientId)
 				// TODO: THE PROBLEM IS THAT THERE IS NO CHARACTER SO START TIME CAN'T BE SET!
 				if(pPlayer && (pPlayer->IsPlaying() || TeamLocked(m_Core.Team(ClientId))))
 				{
+#ifdef CONF_MQTTSERVICES
+					if(GetDDRaceState(pPlayer) != DDRACE_STARTED)
+					{
+						json response;
+						response["event"] = "start";
+						response["clientid"] = i;
+						response["name"] = Server()->ClientName(i);
+						response["team"] = GameServer()->GetDDRaceTeam(i);
+						GameServer()->Mqtt()->Publish(CHANNEL_INGAME, response);
+					}
+#endif
 					SetDDRaceState(pPlayer, DDRACE_STARTED);
 					SetStartTime(pPlayer, Tick);
 
@@ -446,6 +468,14 @@ void CGameTeams::SetForceCharacterTeam(int ClientId, int Team)
 
 		ResetSwitchers(Team);
 	}
+#ifdef CONF_MQTTSERVICES
+	json response;
+	response["event"] = "teamchange";
+	response["clientid"] = ClientId;
+	response["name"] = Server()->ClientName(ClientId);
+	response["team"] = GameServer()->GetDDRaceTeam(ClientId);
+	GameServer()->Mqtt()->Publish(CHANNEL_INGAME, response);
+#endif
 }
 
 int CGameTeams::Count(int Team) const
@@ -758,6 +788,16 @@ void CGameTeams::OnFinish(CPlayer *Player, int TimeTicks, const char *pTimestamp
 		pData->m_RecordFinishTime = Time;
 	}
 
+#ifdef CONF_MQTTSERVICES
+	json response;
+	response["event"] = "finish";
+	response["clientid"] = ClientId;
+	response["name"] = Server()->ClientName(ClientId);
+	response["team"] = GameServer()->GetDDRaceTeam(ClientId);
+	response["timestamp"] = pTimestamp;
+	response["time"] = Time;
+	GameServer()->Mqtt()->Publish(CHANNEL_INGAME, response);
+#endif
 	if(!Server()->IsSixup(ClientId))
 	{
 		CNetMsg_Sv_DDRaceTime Msg;
@@ -1149,6 +1189,14 @@ void CGameTeams::OnCharacterDeath(int ClientId, int Weapon)
 		if(!m_aTeamFlock[m_Core.Team(ClientId)])
 			CheckTeamFinished(Team);
 	}
+#ifdef CONF_MQTTSERVICES
+	json response;
+	response["event"] = "death";
+	response["clientid"] = ClientId;
+	response["name"] = Server()->ClientName(ClientId);
+	response["team"] = GameServer()->GetDDRaceTeam(ClientId);
+	GameServer()->Mqtt()->Publish(CHANNEL_INGAME, response);
+#endif
 }
 
 void CGameTeams::SetTeamLock(int Team, bool Lock)
