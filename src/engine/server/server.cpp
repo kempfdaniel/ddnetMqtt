@@ -13,7 +13,6 @@
 #include <engine/map.h>
 #include <engine/server.h>
 #include <engine/storage.h>
-#include <engine/mqtt.h>
 
 #include <engine/shared/compression.h>
 #include <engine/shared/config.h>
@@ -1608,7 +1607,9 @@ void CServer::ProcessClientPacket(CNetChunk *pPacket)
 				char aBuf[256];
 				str_format(aBuf, sizeof(aBuf), "player has entered the game. ClientId=%d addr=<{%s}> sixup=%d", ClientId, aAddrStr, IsSixup(ClientId));
 				Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
+				#ifdef CONF_MQTTSERVICES
 				Mqtt()->Publish(CHANNEL_CONNECTION, std::string(aBuf));
+				#endif
 				m_aClients[ClientId].m_State = CClient::STATE_INGAME;
 				if(!IsSixup(ClientId))
 				{
@@ -2840,7 +2841,9 @@ int CServer::Run()
 						break;
 					}
 					UpdateServerInfo(true);
+					#ifdef CONF_MQTTSERVICES
 					m_pMqtt->SetMapUpdate(true);
+					#endif
 					for(int ClientId = 0; ClientId < MAX_CLIENTS; ClientId++)
 					{
 						if(m_aClients[ClientId].m_State != CClient::STATE_CONNECTING)
@@ -2930,12 +2933,13 @@ int CServer::Run()
 
 				m_CurrentGameTick++;
 				NewTicks++;
-
+#ifdef CONF_MQTTSERVICES
 				if(m_pMqtt->GetLastHeartbeat() == 0 || Tick() > (m_pMqtt->GetLastHeartbeat() + (TickSpeed() * 1)))
 				{
 					m_pMqtt->SetHeartbeat(true);
 					m_pMqtt->SetLastHeartbeat(Tick());
 				}
+#endif
 
 				// apply new input
 				for(int c = 0; c < MAX_CLIENTS; c++)
@@ -3788,7 +3792,9 @@ void CServer::RegisterCommands()
 	m_pMap = Kernel()->RequestInterface<IEngineMap>();
 	m_pStorage = Kernel()->RequestInterface<IStorage>();
 	m_pAntibot = Kernel()->RequestInterface<IEngineAntibot>();
+	#ifdef CONF_MQTTSERVICES
 	m_pMqtt = Kernel()->RequestInterface<IMqtt>();
+	#endif
 
 	Kernel()->RegisterInterface(static_cast<IHttp *>(&m_Http), false);
 

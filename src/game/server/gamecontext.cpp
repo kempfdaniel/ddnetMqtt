@@ -2143,12 +2143,15 @@ void CGameContext::OnSayNetMessage(const CNetMsg_Cl_Say *pMsg, int ClientId, con
 	else
 		Team = TEAM_ALL;
 
+	#ifdef CONF_MQTTSERVICES
 	json result;
 	result["cid"] = ClientId;
 	result["name"] = Server()->ClientName(ClientId);
 	result["message"] = pMsg->m_pMessage;
 	result["team"] = Team;
 	m_pMqtt->Publish(CHANNEL_CHAT, result);
+	#endif
+
 	if(pMsg->m_pMessage[0] == '/')
 	{
 		if(str_startswith_nocase(pMsg->m_pMessage + 1, "w "))
@@ -2232,7 +2235,8 @@ void CGameContext::OnCallVoteNetMessage(const CNetMsg_Cl_CallVote *pMsg, int Cli
 	{
 		str_copy(aReason, pMsg->m_pReason, sizeof(aReason));
 	}
-
+	
+	#ifdef CONF_MQTTSERVICES
 	json result;
 	result["cid"] = ClientId;
 	result["name"] = Server()->ClientName(ClientId);
@@ -2241,6 +2245,8 @@ void CGameContext::OnCallVoteNetMessage(const CNetMsg_Cl_CallVote *pMsg, int Cli
 	result["type"] = pMsg->m_pType;
 	result["aReason"] = aReason;
 	m_pMqtt->Publish(CHANNEL_VOTE, result);
+	#endif
+
 
 	if(str_comp_nocase(pMsg->m_pType, "option") == 0)
 	{
@@ -2494,12 +2500,14 @@ void CGameContext::OnVoteNetMessage(const CNetMsg_Cl_Vote *pMsg, int ClientId)
 	pPlayer->m_Vote = pMsg->m_Vote;
 	pPlayer->m_VotePos = ++m_VotePos;
 	m_VoteUpdate = true;
-
+	#ifdef CONF_MQTTSERVICES
 	json result;
 	result["cid"] = ClientId;
 	result["name"] = Server()->ClientName(ClientId);
 	result["vote"] = pMsg->m_Vote;
 	m_pMqtt->Publish(CHANNEL_VOTE, result);
+	#endif
+
 	CNetMsg_Sv_YourVote Msg = {pMsg->m_Vote};
 	Server()->SendPackMsg(&Msg, MSGFLAG_VITAL, ClientId);
 }
@@ -2621,6 +2629,8 @@ void CGameContext::OnChangeInfoNetMessage(const CNetMsg_Cl_ChangeInfo *pMsg, int
 		return;
 
 	bool SixupNeedsUpdate = false;
+
+	#ifdef CONF_MQTTSERVICES
 	json result;
 
 	if (pPlayer->GetCharacter())
@@ -2649,7 +2659,7 @@ void CGameContext::OnChangeInfoNetMessage(const CNetMsg_Cl_ChangeInfo *pMsg, int
 		result["old"]["colorFeet"] = 0;
 
 	}
-
+	#endif
 	pPlayer->m_LastChangeInfo = Server()->Tick();
 	pPlayer->UpdatePlaytime();
 
@@ -2745,7 +2755,7 @@ void CGameContext::OnChangeInfoNetMessage(const CNetMsg_Cl_ChangeInfo *pMsg, int
 		Server()->SendPackMsg(&Msg, MSGFLAG_VITAL | MSGFLAG_NORECORD, -1);
 	}
 
-
+	#ifdef CONF_MQTTSERVICES
 	result["new"]["name"] = Server()->ClientName(ClientId);
 	result["new"]["clan"] = Server()->ClientClan(ClientId);
 	result["new"]["country"] = Server()->ClientCountry(ClientId);
@@ -2753,8 +2763,9 @@ void CGameContext::OnChangeInfoNetMessage(const CNetMsg_Cl_ChangeInfo *pMsg, int
 	result["new"]["useCustomColor"] = pMsg->m_UseCustomColor;
 	result["new"]["colorBody"] = pMsg->m_ColorBody;
 	result["new"]["colorFeet"] = pMsg->m_ColorFeet;
-
 	m_pMqtt->Publish(CHANNEL_PLAYERINFO, result);
+	#endif
+
 
 	Server()->ExpireServerInfo();
 }
@@ -3596,7 +3607,9 @@ void CGameContext::OnConsoleInit()
 	m_pConsole = Kernel()->RequestInterface<IConsole>();
 	m_pEngine = Kernel()->RequestInterface<IEngine>();
 	m_pStorage = Kernel()->RequestInterface<IStorage>();
-	m_pMqtt = Kernel()->RequestInterface<IMqtt>();
+	#ifdef CONF_MQTTSERVICES
+		m_pMqtt = Kernel()->RequestInterface<IMqtt>();
+	#endif
 
 	Console()->Register("tune", "s[tuning] ?f[value]", CFGFLAG_SERVER | CFGFLAG_GAME, ConTuneParam, this, "Tune variable to value or show current value");
 	Console()->Register("toggle_tune", "s[tuning] f[value 1] f[value 2]", CFGFLAG_SERVER, ConToggleTuneParam, this, "Toggle tune variable");
@@ -3794,7 +3807,9 @@ void CGameContext::RegisterChatCommands()
 	Console()->Register("ninja", "", CFGFLAG_CHAT | CMDFLAG_PRACTICE, ConPracticeNinja, this, "Makes you a ninja");
 	Console()->Register("unninja", "", CFGFLAG_CHAT | CMDFLAG_PRACTICE, ConPracticeUnNinja, this, "Removes ninja from you");
 	Console()->Register("kill", "", CFGFLAG_CHAT | CFGFLAG_SERVER, ConProtectedKill, this, "Kill yourself when kill-protected during a long game (use f1, kill for regular kill)");
+	#ifdef CONF_MQTTSERVICES
 	Console()->Register("login","?s[code]",CFGFLAG_CHAT | CFGFLAG_SERVER, ConLogin, this, "Login into your account. If you dont have any account, go to https://awb-clan.com or https://discord.awb-clan.com");
+	#endif
 }
 
 void CGameContext::OnInit(const void *pPersistentData)
@@ -3808,7 +3823,9 @@ void CGameContext::OnInit(const void *pPersistentData)
 	m_pEngine = Kernel()->RequestInterface<IEngine>();
 	m_pStorage = Kernel()->RequestInterface<IStorage>();
 	m_pAntibot = Kernel()->RequestInterface<IAntibot>();
+	#ifdef CONF_MQTTSERVICES
 	m_pMqtt = Kernel()->RequestInterface<IMqtt>();
+	#endif
 	m_World.SetGameServer(this);
 	m_Events.SetGameServer(this);
 

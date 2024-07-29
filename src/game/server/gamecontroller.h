@@ -24,7 +24,9 @@ class IGameController
 	class CGameContext *m_pGameServer;
 	class CConfig *m_pConfig;
 	class IServer *m_pServer;
+	#ifdef CONF_MQTTSERVICES
 	class IMqtt *m_pMqtt;
+	#endif
 
 	CGameTeams m_Teams;
 
@@ -32,7 +34,10 @@ protected:
 	CGameContext *GameServer() const { return m_pGameServer; }
 	CConfig *Config() { return m_pConfig; }
 	IServer *Server() const { return m_pServer; }
+	#ifdef CONF_MQTTSERVICES
 	IMqtt *Mqtt() const { return m_pMqtt; }
+	#endif
+
 
 	void DoActivityCheck();
 

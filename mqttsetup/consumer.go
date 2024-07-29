@@ -10,7 +10,7 @@ import (
 
 func main() {
 	// Define the MQTT broker URL
-	broker := "tcp://broker.hivemq.com:1883"
+	broker := "tcp://localhost:1883"
 	clientID := "DDNETConsumer"
 	topic := "ddnet/#"
 
@@ -19,6 +19,8 @@ func main() {
 	opts.AddBroker(broker)
 	opts.SetClientID(clientID)
 	opts.SetCleanSession(false) // Set to false to receive messages sent while offline
+	opts.SetUsername("admin")
+	opts.SetPassword("instar")
 	opts.SetDefaultPublishHandler(func(client mqtt.Client, msg mqtt.Message) {
 		log.Printf("Received message[%s]: %s\n", msg.Topic(), string(msg.Payload()))
 	})

@@ -8,8 +8,12 @@
 #include <base/system.h>
 #include <engine/console.h>
 #include <engine/storage.h>
+#ifdef CONF_MQTTSERVICES
 #include <engine/mqtt.h>
 #include <nlohmann/json.hpp>
+#endif
+
+
 
 class CConsole : public IConsole
 {
@@ -50,8 +54,11 @@ class CConsole : public IConsole
 
 	CExecFile *m_pFirstExec;
 	IStorage *m_pStorage;
+	#ifdef CONF_MQTTSERVICES
 	IMqtt *m_pMqtt;
 	bool m_IsMqtt;
+	#endif
+
 	int m_AccessLevel;
 
 	CCommand *m_pRecycleList;
@@ -194,7 +201,10 @@ class CConsole : public IConsole
 	bool m_Cheated;
 
 public:
+	#ifdef CONF_MQTTSERVICES
     using json = nlohmann::json;
+	#endif
+
 	CConsole(int FlagMask);
 	~CConsole();
 

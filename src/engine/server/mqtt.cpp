@@ -8,273 +8,328 @@
 #include <game/server/player.h>
 #include <thread>
 
-#define CONF_MQTTSERVICES
-
 #ifdef CONF_MQTTSERVICES
 
-IMqtt *CreateMqtt(const std::string &address, const std::string &clientID) { return new CMqtt(address, clientID); }
+IMqtt *CreateMqtt() { return new CMqtt(); }
 
-CMqtt::CMqtt(const std::string &address, const std::string &clientID) :
-	m_pServer(0), m_pConsole(0), m_pGameServer(0), client_(address, clientID), connOpts_(), m_lastHeartBeat(0), m_rMapUpdate(true), m_rHeartbeat(true), m_connected(false)
+CMqtt::CMqtt() :
+    m_pServer(0), m_pConsole(0), m_pGameServer(0), m_lastHeartBeat(0), m_rMapUpdate(true), m_rHeartbeat(true), m_connected(false)
 {
-	connOpts_.set_keep_alive_interval(20);
-	connOpts_.set_clean_session(true);
-	dbg_msg("mqtt", "MQTT service initialized");
+    connOpts_.set_keep_alive_interval(20);
+    connOpts_.set_clean_session(true);
+    dbg_msg("mqtt", "MQTT service initialized");
 }
 
 CMqtt::~CMqtt()
 {
-	client_.disconnect()->wait();
+    if (client_ && m_connected) {
+        client_->disconnect()->wait();
+    }
 }
 
 void CMqtt::Init()
 {
-	m_pServer = Kernel()->RequestInterface<IServer>();
-	m_pConsole = Kernel()->RequestInterface<IConsole>();
-	m_pGameServer = Kernel()->RequestInterface<IGameServer>();
-	m_pGameContext = (CGameContext *)Kernel()->RequestInterface<IGameServer>();
-	prefix = "ddnet/" + std::string(g_Config.m_SvSID);
-	dbg_msg("mqtt", "Connecting to MQTT server over interface");
-	client_.connect(connOpts_)->wait();
+    m_pServer = Kernel()->RequestInterface<IServer>();
+    m_pConsole = Kernel()->RequestInterface<IConsole>();
+    m_pGameServer = Kernel()->RequestInterface<IGameServer>();
+    m_pGameContext = static_cast<CGameContext*>(Kernel()->RequestInterface<IGameServer>());
 
-	client_.set_message_callback([this](mqtt::const_message_ptr msg) {
-		const std::string topic = msg->get_topic();
-		const std::string payload = msg->to_string();
+    if (str_comp_nocase(g_Config.m_SvMQTTAddresse, "") == 0 || str_comp_nocase(g_Config.m_SvMQTTUsername, "") == 0 || str_comp_nocase(g_Config.m_SvMQTTPassword, "") == 0)
+    {
+        dbg_msg("mqtt", "MQTT service not initialized, missing configuration");
+        return;
+    }
 
-		if(m_responseCallbacks.find(topic) != m_responseCallbacks.end())
-		{
-			// Call the callback for this response topic
-			m_responseCallbacks[topic](payload);
+    dbg_msg("mqtt", "Address: %s, Username: %s, Password: %s", g_Config.m_SvMQTTAddresse, g_Config.m_SvMQTTUsername, g_Config.m_SvMQTTPassword);
 
-			// Optionally unsubscribe from the response topic
-			client_.unsubscribe(topic)->wait();
+    // Initialisieren des MQTT-Clients
+    client_ = std::make_unique<mqtt::async_client>(g_Config.m_SvMQTTAddresse, "DDNetServer");
 
-			// Remove the callback from the map
-			m_responseCallbacks.erase(topic);
-		}
+    // Setze Verbindungsoptionen
+    connOpts_.set_user_name(g_Config.m_SvMQTTUsername);
+    connOpts_.set_password(g_Config.m_SvMQTTPassword);
+    prefix = std::string(g_Config.m_SvMQTTTopic) + "/" + std::string(g_Config.m_SvSID);
 
-		HandleMessage(topic, payload);
-	});
+    dbg_msg("mqtt", "Connecting to MQTT server over interface");
+    try {
+        client_->connect(connOpts_)->wait();
+        m_connected = true;
+    } catch (const mqtt::exception& exc) {
+        dbg_msg("mqtt", "MQTT connect error: %s", exc.what());
+        return;
+    }
 
-	Subscribe(CHANNEL_RESPONSE);
+    client_->set_message_callback([this](mqtt::const_message_ptr msg) {
+        const std::string topic = msg->get_topic();
+        const std::string payload = msg->to_string();
 
-	m_connected = true;
-	dbg_msg("mqtt", "Connected to the MQTT broker");
-	Publish(CHANNEL_SERVER, std::string("Connected to the MQTT broker"));
+        if (m_responseCallbacks.find(topic) != m_responseCallbacks.end())
+        {
+            // Rufe den Callback für dieses Antwortthema auf
+            m_responseCallbacks[topic](payload);
+
+            // Optional vom Antwortthema abmelden
+            client_->unsubscribe(topic)->wait();
+
+            // Entferne den Callback aus der Map
+            m_responseCallbacks.erase(topic);
+        }
+
+        HandleMessage(topic, payload);
+    });
+
+    Subscribe(CHANNEL_RESPONSE);
+
+    dbg_msg("mqtt", "Connected to the MQTT broker");
+    Publish(CHANNEL_SERVER, std::string("Connected to the MQTT broker"));
 }
 
 void CMqtt::Run()
 {
-	while(1)
-	{
-		if(m_rMapUpdate)
-		{
-			Publish(CHANNEL_MAP, SerializeMapInfo());
-			m_rMapUpdate = false;
-		}
-
-		if(m_rHeartbeat)
-		{
-			/// Publish(CHANNEL_SERVERINFO, SerializeServer());
-			m_rHeartbeat = false;
-		}
-
-		if(m_connected && !m_missedMessages.empty())
-		{
-			for(auto &message : m_missedMessages)
-			{
-				Publish(message.first, message.second);
-			}
-			m_missedMessages.clear();
-		}
-
-		std::this_thread::sleep_for(std::chrono::milliseconds(20));
-	}
-}
-
-void CMqtt::Subscribe(const int &topic)
-{
-	client_.subscribe(GetChannelName(topic), 1)->wait();
-}
-
-void CMqtt::Publish(const int &topic, const std::string &payload)
-{
 	if(!m_connected)
 	{
-		m_missedMessages.emplace(topic, payload);
 		return;
 	}
 
-	// dbg_msg("mqtt", "Publishing to topic: %s, payload: %s", GetChannelName(topic).c_str(), payload.c_str());
-	client_.publish(GetChannelName(topic), payload.c_str(), payload.size(), 1, false)->wait();
+    while(1)
+    {
+        if (m_rMapUpdate)
+        {
+            Publish(CHANNEL_MAP, SerializeMapInfo());
+            m_rMapUpdate = false;
+        }
+
+        if (m_rHeartbeat)
+        {
+            //Publish(CHANNEL_SERVERINFO, SerializeServer());
+            m_rHeartbeat = false;
+        }
+
+        if (m_connected && !m_missedMessages.empty())
+        {
+            for (auto& message : m_missedMessages)
+            {
+                Publish(message.first, message.second);
+            }
+            m_missedMessages.clear();
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
 }
 
-void CMqtt::Publish(const int &topic, const json &payload)
+bool CMqtt::Subscribe(const int& topic)
 {
-	if(!m_connected)
-	{
-		m_missedMessages.emplace(topic, payload);
-		return;
-	}
+    if (!m_connected)
+        return false;
 
-	json payloadEx = payload;
-	payloadEx["tick"] = Server()->Tick();
-	// dbg_msg("mqtt", "Publishing to topic: %s, payload: %s", GetChannelName(topic).c_str(), payloadEx.dump().c_str());
-	client_.publish(GetChannelName(topic), payloadEx.dump().c_str(), payloadEx.dump().size(), 1, false);
+    client_->subscribe(GetChannelName(topic), 1)->wait();
+    return true;
 }
 
-void CMqtt::PublishWithResponse(const int &topic, const std::string &payload, const std::string &responseTopic)
+bool CMqtt::Publish(const int& topic, const std::string& payload)
 {
-	// Subscribe to the response topic
-	client_.subscribe(responseTopic, 1)->wait();
+    if (!m_connected)
+    {
+        m_missedMessages.emplace(topic, payload);
+        return false;
+    }
 
-	// Add a callback to handle the response
-	m_responseCallbacks[responseTopic] = [](const std::string &response) {
-		// Handle the response (e.g., log it or process it)
-		dbg_msg("mqtt", "Received response: %s", response.c_str());
-	};
-
-	// Publish the message
-	client_.publish(GetChannelName(topic), payload.c_str(), payload.size(), 1, false)->wait();
+    // dbg_msg("mqtt", "Publishing to topic: %s, payload: %s", GetChannelName(topic).c_str(), payload.c_str());
+    client_->publish(GetChannelName(topic), payload.c_str(), payload.size(), 1, false);
+    return true;
 }
 
-void CMqtt::WaitForResponse(const std::string &responseTopic, std::function<void(const std::string &)> callback)
+bool CMqtt::Publish(const int& topic, const json& payload)
 {
-	// Store the callback for the response topic
-	m_responseCallbacks[responseTopic] = callback;
+    if (!m_connected)
+    {
+        m_missedMessages.emplace(topic, payload);
+        return false;
+    }
+
+    json payloadEx = payload;
+    payloadEx["tick"] = Server()->Tick();
+    client_->publish(GetChannelName(topic), payloadEx.dump().c_str(), payloadEx.dump().size(), 1, false);
+    return true;
+}
+
+bool CMqtt::PublishWithResponse(const int& topic, const std::string& payload, const std::string& responseTopic)
+{
+    if (!m_connected)
+    {
+        dbg_msg("mqtt", "Not connected to MQTT broker, cannot publish with response");
+        return false;
+    }
+    // Subscribe to the response topic
+    client_->subscribe(responseTopic, 1)->wait();
+
+    // Add a callback to handle the response
+    m_responseCallbacks[responseTopic] = [](const std::string& response) {
+        // Handle the response (e.g., log it or process it)
+        dbg_msg("mqtt", "Received response: %s", response.c_str());
+    };
+
+    // Publish the message
+    client_->publish(GetChannelName(topic), payload.c_str(), payload.size(), 1, false)->wait();
+    return true;
+}
+
+bool CMqtt::WaitForResponse(const std::string& responseTopic, std::function<void(const std::string&)> callback)
+{
+    if (!m_connected)
+    {
+        dbg_msg("mqtt", "Not connected to MQTT broker, cannot wait for response");
+        return false;
+    }
+
+    // Store the callback for the response topic
+    m_responseCallbacks[responseTopic] = callback;
+    return true;
 }
 
 std::string CMqtt::GetChannelName(int channel)
 {
-	switch(channel)
-	{
-	case CHANNEL_SERVER:
-		return std::string(prefix) + "/server";
-	case CHANNEL_CONSOLE:
-		return std::string(prefix) + "/console";
-	case CHANNEL_CHAT:
-		return std::string(prefix) + "/chat";
-	case CHANNEL_RCON:
-		return std::string(prefix) + "/rcon";
-	case CHANNEL_LOGIN:
-		return std::string(prefix) + "/login";
-	case CHANNEL_MAP:
-		return std::string(prefix) + "/map";
-	case CHANNEL_CONNECTION:
-		return std::string(prefix) + "/connection";
-	case CHANNEL_RESPONSE:
-		return std::string(prefix) + "/response";
-	case CHANNEL_VOTE:
-		return std::string(prefix) + "/vote";
-	case CHANNEL_PLAYERINFO:
-		return std::string(prefix) + "/playerinfo";
-	case CHANNEL_SERVERINFO:
-		return std::string(prefix) + "/serverinfo";
-	default:
-		return std::string(prefix) + "/default";
-	}
+    switch (channel)
+    {
+    case CHANNEL_SERVER:
+        return std::string(prefix) + "/server";
+    case CHANNEL_CONSOLE:
+        return std::string(prefix) + "/console";
+    case CHANNEL_CHAT:
+        return std::string(prefix) + "/chat";
+    case CHANNEL_RCON:
+        return std::string(prefix) + "/rcon";
+    case CHANNEL_LOGIN:
+        return std::string(prefix) + "/login";
+    case CHANNEL_MAP:
+        return std::string(prefix) + "/map";
+    case CHANNEL_CONNECTION:
+        return std::string(prefix) + "/connection";
+    case CHANNEL_RESPONSE:
+        return std::string(prefix) + "/response";
+    case CHANNEL_VOTE:
+        return std::string(prefix) + "/vote";
+    case CHANNEL_PLAYERINFO:
+        return std::string(prefix) + "/playerinfo";
+    case CHANNEL_SERVERINFO:
+        return std::string(prefix) + "/serverinfo";
+    default:
+        return std::string(prefix) + "/default";
+    }
 }
 
 std::string CMqtt::RandomUuid()
 {
-	std::string uuid = "4y4yxxxxxxxxxxx";
-	for(int i = 0; i < (int)uuid.size(); ++i)
-	{
-		if(uuid[i] == 'x')
-		{
-			uuid[i] = "0123456789abcdef"[rand() % 16];
-		}
-		else if(uuid[i] == 'y')
-		{
-			uuid[i] = "89ab"[rand() % 4];
-		}
-	}
-	return uuid;
+    std::string uuid = "4y4yxxxxxxxxxxx";
+    for (int i = 0; i < (int)uuid.size(); ++i)
+    {
+        if (uuid[i] == 'x')
+        {
+            uuid[i] = "0123456789abcdef"[rand() % 16];
+        }
+        else if (uuid[i] == 'y')
+        {
+            uuid[i] = "89ab"[rand() % 4];
+        }
+    }
+    return uuid;
 }
 
-void CMqtt::RequestLogin(const int &clientId, const std::string &logintoken)
+bool CMqtt::RequestLogin(const int& clientId, const std::string& logintoken)
 {
-	if(clientId < 0 || clientId >= MAX_CLIENTS)
-	{
-		return;
-	}
-	if(m_pGameContext->m_apPlayers[clientId] == nullptr)
-	{
-		return;
-	}
-	if(logintoken.empty())
-	{
-		return;
-	}
+    if (!m_connected)
+    {
+        dbg_msg("mqtt", "Not connected to MQTT broker, cannot request login");
+        return false;
+    }
 
-	json payload;
-	std::string responseTopic = GetChannelName(CHANNEL_RESPONSE) + "/" + RandomUuid();
-	char pLoginToken[128];
-	char pUsername[MAX_NAME_LENGTH];
-	char pIp[NETADDR_MAXSTRSIZE];
-	int pClientID = clientId;
-	str_copy(pLoginToken, logintoken.c_str(), sizeof(pLoginToken));
-	str_copy(pUsername, m_pServer->ClientName(clientId), sizeof(pUsername));
-	m_pGameContext->Server()->GetClientAddr(pClientID, pIp, sizeof(pIp));
+    if (clientId < 0 || clientId >= MAX_CLIENTS)
+    {
+        return false;
+    }
+    if (m_pGameContext->m_apPlayers[clientId] == nullptr)
+    {
+        return false;
+    }
+    if (logintoken.empty())
+    {
+        return false;
+    }
 
-	payload["clientid"] = pClientID;
-	payload["logintoken"] = pLoginToken;
-	payload["username"] = pUsername;
-	payload["responseTopic"] = responseTopic;
-	payload["ip"] = pIp;
-	PublishWithResponse(CHANNEL_LOGIN, payload.dump(), responseTopic);
+    json payload;
+    std::string responseTopic = GetChannelName(CHANNEL_RESPONSE) + "/" + RandomUuid();
+    char pLoginToken[128];
+    char pUsername[MAX_NAME_LENGTH];
+    char pIp[NETADDR_MAXSTRSIZE];
+    int pClientID = clientId;
+    str_copy(pLoginToken, logintoken.c_str(), sizeof(pLoginToken));
+    str_copy(pUsername, m_pServer->ClientName(clientId), sizeof(pUsername));
+    m_pGameContext->Server()->GetClientAddr(pClientID, pIp, sizeof(pIp));
 
-	WaitForResponse(responseTopic, [this](const std::string &response) {
-		json jsonResponse = json::parse(response);
-		//TODO: Handle the response
-		if(jsonResponse["status"] == "success")
-		{
-			dbg_msg("mqtt", "Login successful");
-		}
-		else
-		{
-			dbg_msg("mqtt", "Login failed");
-		}
-	});
+    payload["clientid"] = pClientID;
+    payload["logintoken"] = pLoginToken;
+    payload["username"] = pUsername;
+    payload["responseTopic"] = responseTopic;
+    payload["ip"] = pIp;
+    PublishWithResponse(CHANNEL_LOGIN, payload.dump(), responseTopic);
+
+    WaitForResponse(responseTopic, [this](const std::string& response) {
+        json jsonResponse = json::parse(response);
+        // TODO: Handle the response
+        if (jsonResponse["status"] == "success")
+        {
+            dbg_msg("mqtt", "Login successful");
+        }
+        else
+        {
+            dbg_msg("mqtt", "Login failed");
+        }
+    });
+
+    return true;
 }
 
-void CMqtt::HandleMessage(const std::string &topic, const std::string &payload)
+void CMqtt::HandleMessage(const std::string& topic, const std::string& payload)
 {
-	if(!(str_comp_nocase(topic.c_str(), GetChannelName(CHANNEL_RESPONSE).c_str()) == 0))
-	{
-		return;
-	}
+    if (!(str_comp_nocase(topic.c_str(), GetChannelName(CHANNEL_RESPONSE).c_str()) == 0))
+    {
+        return;
+    }
 
-	json response = json::parse(payload);
-	const int type = response["type"].get<int>();
+    json response = json::parse(payload);
+    const int type = response["type"].get<int>();
 
-	switch(type)
-	{
-	case CHANNEL_RESPONSETYPE_RCON:
-	{
-		// Execute a console command
-		const std::string data = response["data"].get<std::string>();
-		Console()->ExecuteLine(data.c_str());
-		break;
-	}
-	case CHANNEL_RESPONSETYPE_CHAT:
-	{
-		// Send a chat message 
-		const int cid = response["data"]["cid"].get<int>();
-		const int team = response["data"]["team"].get<int>();
-		const std::string message = response["data"]["message"].get<std::string>();
-		GameContext()->SendChat(cid, team, message.c_str());
-		break;
-	}
-	case CHANNEL_RESPONSETYPE_RESENDMAP:
-	{
-		// Resend the map
-		m_rMapUpdate = true;
-	}
-	default:
-		dbg_msg("mqtt", "Unhandled type received in JSON response.");
-		break;
-	}
+    switch (type)
+    {
+    case CHANNEL_RESPONSETYPE_RCON:
+    {
+        // Execute a console command
+        const std::string data = response["data"].get<std::string>();
+        Console()->ExecuteLine(data.c_str());
+        break;
+    }
+    case CHANNEL_RESPONSETYPE_CHAT:
+    {
+        // Send a chat message
+        const int cid = response["data"]["cid"].get<int>();
+        const int team = response["data"]["team"].get<int>();
+        const std::string message = response["data"]["message"].get<std::string>();
+        GameContext()->SendChat(cid, team, message.c_str());
+        break;
+    }
+    case CHANNEL_RESPONSETYPE_RESENDMAP:
+    {
+        // Resend the map
+        m_rMapUpdate = true;
+        break;
+    }
+    default:
+    {
+        dbg_msg("mqtt", "Unhandled type received in JSON response.");
+        break;
+    }
+    }
 }
 
 json CMqtt::SerializeMapInfo()

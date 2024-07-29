@@ -6,7 +6,10 @@
 #include <engine/map.h>
 #include <engine/server.h>
 #include <engine/storage.h>
+#ifdef CONF_MQTTSERVICES
 #include <engine/mqtt.h>
+#endif
+
 #include <engine/server/antibot.h>
 #include <engine/server/databases/connection.h>
 #include <engine/server/server.h>
@@ -41,12 +44,15 @@ void HandleSigIntTerm(int Param)
 	signal(SIGTERM, SIG_DFL);
 }
 
+#ifdef CONF_MQTTSERVICES
 void CreateMqttAsync(IMqtt *pMqtt)
 {
 	dbg_msg("mqtt", "Starting MQTT thread");
 	pMqtt->Init();
 	pMqtt->Run();
 }
+#endif
+
 
 int main(int argc, const char **argv)
 {
@@ -153,12 +159,15 @@ int main(int argc, const char **argv)
 	IGameServer *pGameServer = CreateGameServer();
 	pKernel->RegisterInterface(pGameServer);
 
-	IMqtt *pMqtt = CreateMqtt("tcp://broker.hivemq.com:1883", "DDNetServer");
+#ifdef CONF_MQTTSERVICES
+	IMqtt *pMqtt = CreateMqtt();
 	pKernel->RegisterInterface(pMqtt);
+#endif
 
 	pEngine->Init();
 	pConsole->Init();
 	pConfigManager->Init();
+
 
 	// register all console commands
 	pServer->RegisterCommands();
@@ -203,9 +212,12 @@ int main(int argc, const char **argv)
 	auto pServerLogger = std::make_shared<CServerLogger>(pServer);
 	pEngine->SetAdditionalLogger(pServerLogger);
 
+#ifdef CONF_MQTTSERVICES
 	std::thread MqttThread{CreateMqttAsync, pMqtt};
 	MqttThread.detach();
 	pServer->setMqtt(pMqtt);
+#endif
+
 	// run the server
 	log_trace("server", "initialization finished after %.2fms, starting...", (time_get() - MainStart) * 1000.0f / (float)time_freq());
 	int Ret = pServer->Run();

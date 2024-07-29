@@ -368,8 +368,14 @@ MACRO_CONFIG_INT(InpControllerTolerance, inp_controller_tolerance, 5, 0, 50, CFG
 MACRO_CONFIG_INT(ClPort, cl_port, 0, 0, 65535, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Port to use for client connections to server (0 to choose a random port, 1024 or higher to set a manual port, requires a restart)")
 MACRO_CONFIG_INT(ClDummyPort, cl_dummy_port, 0, 0, 65535, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Port to use for dummy connections to server (0 to choose a random port, 1024 or higher to set a manual port, requires a restart)")
 MACRO_CONFIG_INT(ClContactPort, cl_contact_port, 0, 0, 65535, CFGFLAG_SAVE | CFGFLAG_CLIENT, "Port to use for serverinfo connections to server (0 to choose a random port, 1024 or higher to set a manual port, requires a restart)")
-
+#ifdef CONF_MQTTSERVICES
 MACRO_CONFIG_STR(SvSID, sv_sid, 128, "default", CFGFLAG_SERVER, "Unique server id for mqtt")
+MACRO_CONFIG_STR(SvMQTTAddresse, sv_mqtt_address, 128, "", CFGFLAG_SERVER, "MQTT server address")
+MACRO_CONFIG_STR(SvMQTTUsername, sv_mqtt_username, 128, "", CFGFLAG_SERVER, "MQTT username")
+MACRO_CONFIG_STR(SvMQTTPassword, sv_mqtt_password, 128, "", CFGFLAG_SERVER, "MQTT password")
+MACRO_CONFIG_STR(SvMQTTTopic, sv_mqtt_topic, 128, "ddnet", CFGFLAG_SERVER, "MQTT topic")
+#endif
+
 MACRO_CONFIG_STR(SvName, sv_name, 128, "unnamed server", CFGFLAG_SERVER, "Server name")
 MACRO_CONFIG_STR(Bindaddr, bindaddr, 128, "", CFGFLAG_CLIENT | CFGFLAG_SERVER | CFGFLAG_MASTER, "Address to bind the client/server to")
 MACRO_CONFIG_INT(SvIpv4Only, sv_ipv4only, 0, 0, 1, CFGFLAG_SERVER, "Whether to bind only to ipv4, otherwise bind to all available interfaces")

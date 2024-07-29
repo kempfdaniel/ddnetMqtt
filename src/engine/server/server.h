@@ -27,7 +27,10 @@
 #include "authmanager.h"
 #include "name_ban.h"
 #include "snap_id_pool.h"
+#ifdef CONF_MQTTSERVICES
 #include <nlohmann/json.hpp>
+#include <engine/mqtt.h>
+#endif
 
 #if defined(CONF_UPNP)
 #include "upnp.h"
@@ -72,7 +75,9 @@ class CServer : public IServer
 	class IStorage *m_pStorage;
 	class IEngineAntibot *m_pAntibot;
 	class IRegister *m_pRegister;
+	#ifdef CONF_MQTTSERVICES
 	class IMqtt *m_pMqtt;
+	#endif
 	IEngine *m_pEngine;
 
 #if defined(CONF_UPNP)
@@ -99,12 +104,18 @@ public:
 	class IConsole *Console() { return m_pConsole; }
 	class IStorage *Storage() { return m_pStorage; }
 	class IEngineAntibot *Antibot() { return m_pAntibot; }
+	#ifdef CONF_MQTTSERVICES
 	class IMqtt *Mqtt() { return m_pMqtt; }
+	using json = nlohmann::json;
+	#endif
+
 	class CDbConnectionPool *DbPool() { return m_pConnectionPool; }
 	IEngine *Engine() { return m_pEngine; }
-    using json = nlohmann::json;
 
+
+#ifdef CONF_MQTTSERVICES
 	void setMqtt(IMqtt *mqtt) { m_pMqtt = mqtt; }
+#endif
 	enum
 	{
 		MAX_RCONCMD_SEND = 16,

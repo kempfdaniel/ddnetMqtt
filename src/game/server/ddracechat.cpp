@@ -2246,6 +2246,7 @@ void CGameContext::ConTimeCP(IConsole::IResult *pResult, void *pUserData)
 	pSelf->Score()->LoadPlayerTimeCp(pResult->m_ClientId, pName);
 }
 
+#ifdef CONF_MQTTSERVICES
 void CGameContext::ConLogin(IConsole::IResult *pResult, void *pUserData)
 {
 	CGameContext *pSelf = (CGameContext *)pUserData;
@@ -2263,3 +2264,5 @@ void CGameContext::ConLogin(IConsole::IResult *pResult, void *pUserData)
 	str_format(loginToken, sizeof(loginToken), "%s", pResult->GetString(0));
 	pSelf->Mqtt()->RequestLogin(pPlayer->GetCid(), loginToken);
 }
+
+#endif

@@ -9,13 +9,15 @@ import (
 
 func main() {
 	// Define the MQTT broker URL and settings
-	broker := "tcp://broker.hivemq.com:1883"
+	broker := "tcp://localhost:1883"
 	clientID := "DDNETSender"
 	topic := "ddnet/FMS/response"
 
 	// Set up a new MQTT client options
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(broker)
+	opts.SetUsername("admin")
+	opts.SetPassword("instar")
 	opts.SetClientID(clientID)
 	opts.SetDefaultPublishHandler(func(client mqtt.Client, msg mqtt.Message) {
 		log.Printf("Received confirmation[%s]: %s\n", msg.Topic(), msg.Payload())
@@ -35,7 +37,10 @@ func main() {
 	//message, _ := reader.ReadString('\n')
 
 	// Construct the JSON response as required
-	jsonResponse := fmt.Sprintf(`{"type": 1, "data": {"cid": -1, "team": -2, "message": "Hello, World!"}}`)
+	//	jsonResponse := fmt.Sprintf(`{"type": 1, "data": {"cid": -1, "team": -2, "message": "Hello, World!"}}`)
+	//jsonResponse := fmt.Sprintf(`{"type": 0, "data": "broadcast Hello, World!"}`)
+	jsonResponse := fmt.Sprintf(`{"type": 2, "data": {"cid": 0, "team": -2, "message": "Hello, World!"}}`)
+	//
 	token := client.Publish(topic, 1, false, jsonResponse)
 	token.Wait()
 	fmt.Printf("Published message to %s: %s\n", topic, jsonResponse)

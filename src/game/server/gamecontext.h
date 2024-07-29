@@ -5,7 +5,6 @@
 
 #include <engine/console.h>
 #include <engine/server.h>
-#include <engine/mqtt.h>
 
 #include <game/collision.h>
 #include <game/generated/protocol.h>
@@ -19,7 +18,11 @@
 
 #include <memory>
 #include <string>
+#ifdef CONF_MQTTSERVICES
 #include <nlohmann/json.hpp>
+#include <engine/mqtt.h>
+#endif
+
 
 /*
 	Tick
@@ -59,7 +62,9 @@ class IAntibot;
 class IGameController;
 class IEngine;
 class IStorage;
+#ifdef CONF_MQTTSERVICES
 class IMqtt;
+#endif
 struct CAntibotRoundData;
 struct CScoreRandomMapResult;
 
@@ -84,7 +89,9 @@ class CGameContext : public IGameServer
 	IConfigManager *m_pConfigManager;
 	CConfig *m_pConfig;
 	IConsole *m_pConsole;
+	#ifdef CONF_MQTTSERVICES
 	IMqtt *m_pMqtt;
+	#endif
 	IEngine *m_pEngine;
 	IStorage *m_pStorage;
 	IAntibot *m_pAntibot;
@@ -171,9 +178,12 @@ public:
 	CTuningParams *TuningList() { return &m_aTuningList[0]; }
 	IAntibot *Antibot() { return m_pAntibot; }
 	CTeeHistorian *TeeHistorian() { return &m_TeeHistorian; }
+	#ifdef CONF_MQTTSERVICES
 	IMqtt *Mqtt() { return m_pMqtt; }
+	using json = nlohmann::json;
+	#endif
 	bool TeeHistorianActive() const { return m_TeeHistorianActive; }
-    using json = nlohmann::json;
+
 
 	CGameContext();
 	CGameContext(int Reset);
@@ -512,8 +522,9 @@ private:
 	static void ConUninvite(IConsole::IResult *pResult, void *pUserData);
 	static void ConFreezeHammer(IConsole::IResult *pResult, void *pUserData);
 	static void ConUnFreezeHammer(IConsole::IResult *pResult, void *pUserData);
-
+	#ifdef CONF_MQTTSERVICES
 	static void ConLogin(IConsole::IResult *pResult, void *pUserData);
+	#endif
 	CCharacter *GetPracticeCharacter(IConsole::IResult *pResult);
 
 	enum

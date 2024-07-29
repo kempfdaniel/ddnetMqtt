@@ -2532,12 +2532,6 @@ if(SERVER)
     antibot_interface.h
     antibot_null.cpp
   )
-
-  set_src(MQTTSERVICES GLOB_RECURSE src/engine/server
-    mqtt.cpp
-    mqtt.h
-  )
-
   set_src(ENGINE_SERVER GLOB_RECURSE src/engine/server
     antibot.cpp
     antibot.h
@@ -2550,6 +2544,8 @@ if(SERVER)
     databases/mysql.cpp
     databases/sqlite.cpp
     main.cpp
+    mqtt.cpp
+    mqtt.h
     name_ban.cpp
     name_ban.h
     register.cpp
@@ -2623,9 +2619,9 @@ if(SERVER)
     "src/game/generated/wordlist.h"
   )
   set(SERVER_SRC ${ENGINE_SERVER} ${GAME_SERVER} ${GAME_GENERATED_SERVER})
-  if(MQTTSERVICES)
-    set(SERVER_SRC ${SERVER_SRC} ${MQTTSERVICES})
-  endif()
+  # if(MQTTSERVICES)
+  #   set(SERVER_SRC ${SERVER_SRC} ${MQTTSERVICES})
+  # endif()
   if(TARGET_OS STREQUAL "windows")
     set(SERVER_ICON "other/icons/DDNet-Server.rc")
   else()

@@ -41,14 +41,14 @@ public:
 	/* MQTT FUNCTIONS */
 	virtual void Run() = 0;
 	virtual void Init() = 0;
-	virtual void Subscribe(const int &topic) = 0;
-	virtual void Publish(const int &topic, const std::string &payload) = 0;
-	virtual void Publish(const int& topic, const json& payload) = 0;
-    virtual void PublishWithResponse(const int &topic, const std::string &payload, const std::string &responseTopic) = 0;
-    virtual void WaitForResponse(const std::string &responseTopic, std::function<void(const std::string&)> callback) = 0;
+	virtual bool Subscribe(const int &topic) = 0;
+	virtual bool Publish(const int &topic, const std::string &payload) = 0;
+	virtual bool Publish(const int& topic, const json& payload) = 0;
+    virtual bool PublishWithResponse(const int &topic, const std::string &payload, const std::string &responseTopic) = 0;
+    virtual bool WaitForResponse(const std::string &responseTopic, std::function<void(const std::string&)> callback) = 0;
 
 	/* EXTRA FUNCTIONS */
-	virtual void RequestLogin(const int &clientId, const std::string &logintoken) = 0;
+	virtual bool RequestLogin(const int &clientId, const std::string &logintoken) = 0;
 };
-IMqtt *CreateMqtt(const std::string &address, const std::string &clientID);
+IMqtt *CreateMqtt();
 #endif // ENGINE_MQTT_H
