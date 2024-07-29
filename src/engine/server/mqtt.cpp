@@ -8,7 +8,6 @@
 #include <game/server/player.h>
 #include <thread>
 
-#define CONF_MQTTSERVICES
 #ifdef CONF_MQTTSERVICES
 
 IMqtt *CreateMqtt() { return new CMqtt(); }
@@ -127,11 +126,12 @@ bool CMqtt::Subscribe(const int &topic)
 	try
 	{
 		client_->subscribe(GetChannelName(topic), 1)->wait();
+        return true;
 	}
 	catch(const mqtt::exception &exc)
 	{
 		dbg_msg("mqtt", "MQTT subscribe error: %s", exc.what());
-		return;
+		return false;
 	}
 
 	return true;
