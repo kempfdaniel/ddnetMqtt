@@ -7,7 +7,7 @@
 #include <game/server/entities/character.h>
 #include <game/server/player.h>
 #include <thread>
-
+#define CONF_MQTTSERVICES
 #ifdef CONF_MQTTSERVICES
 
 IMqtt *CreateMqtt() { return new CMqtt(); }
@@ -61,16 +61,18 @@ void CMqtt::Init()
 				m_responseCallbacks[topic](payload);
 
 				// Optional vom Antwortthema abmelden
-				client_->unsubscribe(topic)->wait();
+				client_->unsubscribe(topic);
 
 				// Entferne den Callback aus der Map
 				m_responseCallbacks.erase(topic);
 			}
-
-			HandleMessage(topic, payload);
+			else
+			{
+				HandleMessage(topic, payload);
+			}
 		});
 
-		Subscribe(CHANNEL_RESPONSE);
+		// Subscribe(CHANNEL_RESPONSE);
 
 		dbg_msg("mqtt", "Connected to the MQTT broker with topic %s", prefix.c_str());
 		Publish(CHANNEL_SERVER, std::string("Connected to the MQTT broker"));
@@ -96,7 +98,7 @@ void CMqtt::Run()
 
 			if(m_rHeartbeat)
 			{
-				Publish(CHANNEL_SERVERINFO, SerializeServer());
+				// Publish(CHANNEL_SERVERINFO, SerializeServer());
 				m_rHeartbeat = false;
 			}
 
@@ -108,7 +110,7 @@ void CMqtt::Run()
 				}
 				m_missedMessages.clear();
 			}
-			//std::this_thread::sleep_for(std::chrono::milliseconds(20));
+			// std::this_thread::sleep_for(std::chrono::milliseconds(20));
 		}
 	}
 	catch(const std::exception &e)
@@ -125,7 +127,7 @@ bool CMqtt::Subscribe(const int &topic)
 	try
 	{
 		client_->subscribe(GetChannelName(topic), 1)->wait();
-        return true;
+		return true;
 	}
 	catch(const mqtt::exception &exc)
 	{
@@ -320,6 +322,372 @@ bool CMqtt::RequestLogin(const int &clientId, const std::string &logintoken)
 			dbg_msg("mqtt", "Login failed");
 		}
 	});
+
+	return true;
+}
+
+/* --- TOURNEMENT LOGIC --- */
+
+bool CMqtt::RequestTJoin(const int &clientId, const std::string &teamname)
+{
+	if(!m_connected)
+	{
+		dbg_msg("mqtt", "Not connected to MQTT broker, cannot request TJoin");
+		return false;
+	}
+
+	if(clientId < 0 || clientId >= MAX_CLIENTS)
+	{
+		return false;
+	}
+	if(m_pGameContext->m_apPlayers[clientId] == nullptr)
+	{
+		return false;
+	}
+	if(teamname.empty())
+	{
+		return false;
+	}
+
+	json payload;
+	std::string responseTopic = GetChannelName(CHANNEL_RESPONSE) + "/" + RandomUuid();
+	char pTeamname[128];
+	char pUsername[MAX_NAME_LENGTH];
+	char pIp[NETADDR_MAXSTRSIZE];
+	int pClientID = clientId;
+	str_copy(pTeamname, teamname.c_str(), sizeof(pTeamname));
+	str_copy(pUsername, m_pServer->ClientName(clientId), sizeof(pUsername));
+	m_pGameContext->Server()->GetClientAddr(pClientID, pIp, sizeof(pIp));
+
+	payload["action"] = "TJoin";
+	payload["clientid"] = pClientID;
+	payload["teamname"] = pTeamname;
+	payload["username"] = pUsername;
+	payload["responseTopic"] = responseTopic;
+	payload["ip"] = pIp;
+	PublishWithResponse(CHANNEL_RESPONSE, payload.dump(), responseTopic);
+
+	WaitForResponse(responseTopic, [this](const std::string &mqttResponse) {
+		json json_data = nlohmann::json::parse(mqttResponse);
+		CMqtt::ResponseType response = json_data.get<CMqtt::ResponseType>();
+		std::string requester = response.data.requester;
+		std::string reason = response.data.reason;
+
+		for(int i = 0; i < MAX_CLIENTS; i++)
+		{
+			if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), requester.c_str()) == 0)
+			{
+				GameContext()->SendChatTarget(i, response.data.reason.c_str());
+			}
+		}
+	});
+
+	return true;
+}
+
+bool CMqtt::RequestTInvite(const int &clientId, const std::string &playername)
+{
+	if(!m_connected)
+	{
+		dbg_msg("mqtt", "Not connected to MQTT broker, cannot request TInvite");
+		return false;
+	}
+
+	if(clientId < 0 || clientId >= MAX_CLIENTS)
+	{
+		return false;
+	}
+	if(m_pGameContext->m_apPlayers[clientId] == nullptr)
+	{
+		return false;
+	}
+	if(playername.empty())
+	{
+		return false;
+	}
+
+	json payload;
+	std::string responseTopic = GetChannelName(CHANNEL_RESPONSE) + "/" + RandomUuid();
+	char pPlayername[128];
+	char pUsername[MAX_NAME_LENGTH];
+	char pIp[NETADDR_MAXSTRSIZE];
+	int pClientID = clientId;
+	str_copy(pPlayername, playername.c_str(), sizeof(pPlayername));
+	str_copy(pUsername, m_pServer->ClientName(clientId), sizeof(pUsername));
+	m_pGameContext->Server()->GetClientAddr(pClientID, pIp, sizeof(pIp));
+
+	payload["action"] = "TInvite";
+	payload["responseTopic"] = responseTopic;
+	payload["clientid"] = pClientID;
+	payload["username"] = pUsername;
+	payload["playername"] = pPlayername;
+	payload["ip"] = pIp;
+	PublishWithResponse(CHANNEL_RESPONSE, payload.dump(), responseTopic);
+
+	WaitForResponse(responseTopic, [this](const std::string &mqttResponse) {
+		json json_data = nlohmann::json::parse(mqttResponse);
+		CMqtt::ResponseType response = json_data.get<CMqtt::ResponseType>();
+		std::string requester = response.data.requester;
+		std::string reason = response.data.reason;
+
+		if(response.data.tTeam)
+		{
+			CMqtt::Team tTeam = *(response.data.tTeam);
+			if(response.success)
+			{
+				std::vector<std::string> teamMembers = tTeam.members;
+				std::string invitedPlayer;
+				if(response.data.invitedPlayer)
+				{
+					invitedPlayer = *(response.data.invitedPlayer);
+				}
+				std::string teamname = tTeam.name;
+
+				for(int i = 0; i < MAX_CLIENTS; i++)
+				{
+					// inform the requester
+					if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), requester.c_str()) == 0)
+					{
+						GameContext()->SendChatTarget(i, reason.c_str());
+					}
+
+					// inform the invited player
+					if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), invitedPlayer.c_str()) == 0)
+					{
+						GameContext()->SendChatTarget(i, ("You have been invited to a team by '" + requester + "'. Type '/taccept " + teamname + "' to accept.").c_str());
+					}
+
+					// inform the team members except the requester
+					for(const auto &member : teamMembers)
+					{
+						if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), member.c_str()) == 0 && str_comp(Server()->ClientName(i), requester.c_str()) != 0)
+						{
+							GameContext()->SendChatTarget(i, ("Player '" + invitedPlayer + "' has been invited to the team.").c_str());
+						}
+					}
+				}
+			}
+			else
+			{
+				for(int i = 0; i < MAX_CLIENTS; i++)
+				{
+					if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), requester.c_str()) == 0)
+					{
+						GameContext()->SendChatTarget(i, reason.c_str());
+					}
+				}
+			}
+		}
+		else
+		{
+			for(int i = 0; i < MAX_CLIENTS; i++)
+			{
+				if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), requester.c_str()) == 0)
+				{
+					GameContext()->SendChatTarget(i, reason.c_str());
+				}
+			}
+		}
+	});
+
+	return true;
+}
+
+bool CMqtt::RequestTLeave(const int &clientId)
+{
+	if(!m_connected)
+	{
+		dbg_msg("mqtt", "Not connected to MQTT broker, cannot request TLeave");
+		return false;
+	}
+
+	if(clientId < 0 || clientId >= MAX_CLIENTS)
+	{
+		return false;
+	}
+	if(m_pGameContext->m_apPlayers[clientId] == nullptr)
+	{
+		return false;
+	}
+
+	json payload;
+	std::string responseTopic = GetChannelName(CHANNEL_RESPONSE) + "/" + RandomUuid();
+	char pUsername[MAX_NAME_LENGTH];
+	char pIp[NETADDR_MAXSTRSIZE];
+	int pClientID = clientId;
+	str_copy(pUsername, m_pServer->ClientName(clientId), sizeof(pUsername));
+	m_pGameContext->Server()->GetClientAddr(pClientID, pIp, sizeof(pIp));
+
+	payload["action"] = "TLeave";
+	payload["clientid"] = pClientID;
+	payload["username"] = pUsername;
+	payload["responseTopic"] = responseTopic;
+	payload["ip"] = pIp;
+	PublishWithResponse(CHANNEL_RESPONSE, payload.dump(), responseTopic);
+
+	WaitForResponse(responseTopic, [this](const std::string &mqttResponse) {
+		json json_data = nlohmann::json::parse(mqttResponse);
+		CMqtt::ResponseType response = json_data.get<CMqtt::ResponseType>();
+		std::string requester = response.data.requester;
+		std::string reason = response.data.reason;
+
+		if(response.data.tTeam)
+		{
+			CMqtt::Team tTeam = *(response.data.tTeam);
+			if(response.success)
+			{
+				std::vector<std::string> teamMembers = tTeam.members;
+				std::string teamname = tTeam.name;
+
+				for(int i = 0; i < MAX_CLIENTS; i++)
+				{
+					// inform the requester
+					if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), requester.c_str()) == 0)
+					{
+						GameContext()->SendChatTarget(i, reason.c_str());
+					}
+
+					// inform the team members except the requester
+					for(const auto &member : teamMembers)
+					{
+						if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), member.c_str()) == 0 && str_comp(Server()->ClientName(i), requester.c_str()) != 0)
+						{
+							GameContext()->SendChatTarget(i, ("Player '" + requester + "' has left the team.").c_str());
+						}
+					}
+				}
+
+				//TODO: Logic to announce the new leader
+			}
+			else
+			{
+				for(int i = 0; i < MAX_CLIENTS; i++)
+				{
+					if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), requester.c_str()) == 0)
+					{
+						GameContext()->SendChatTarget(i, reason.c_str());
+					}
+				}
+			}
+		}
+		else
+		{
+			for(int i = 0; i < MAX_CLIENTS; i++)
+			{
+				if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), requester.c_str()) == 0)
+				{
+					GameContext()->SendChatTarget(i, reason.c_str());
+				}
+			}
+		}
+	});
+
+	return true;
+}
+
+bool CMqtt::RequestTAccept(const int &clientId, const std::string &teamname)
+{
+	try
+	{
+		if(!m_connected)
+		{
+			dbg_msg("mqtt", "Not connected to MQTT broker, cannot request TAccept");
+			return false;
+		}
+
+		if(clientId < 0 || clientId >= MAX_CLIENTS)
+		{
+			return false;
+		}
+		if(m_pGameContext->m_apPlayers[clientId] == nullptr)
+		{
+			return false;
+		}
+		if(teamname.empty())
+		{
+			return false;
+		}
+
+		json payload;
+		std::string responseTopic = GetChannelName(CHANNEL_RESPONSE) + "/" + RandomUuid();
+		char pTeamname[128];
+		char pUsername[MAX_NAME_LENGTH];
+		char pIp[NETADDR_MAXSTRSIZE];
+		int pClientID = clientId;
+		str_copy(pTeamname, teamname.c_str(), sizeof(pTeamname));
+		str_copy(pUsername, m_pServer->ClientName(clientId), sizeof(pUsername));
+		m_pGameContext->Server()->GetClientAddr(pClientID, pIp, sizeof(pIp));
+
+		payload["action"] = "TAccept";
+		payload["clientid"] = pClientID;
+		payload["teamname"] = pTeamname;
+		payload["username"] = pUsername;
+		payload["responseTopic"] = responseTopic;
+		payload["ip"] = pIp;
+		PublishWithResponse(CHANNEL_RESPONSE, payload.dump(), responseTopic);
+
+		WaitForResponse(responseTopic, [this](const std::string &mqttResponse) {
+			json json_data = nlohmann::json::parse(mqttResponse);
+			CMqtt::ResponseType response = json_data.get<CMqtt::ResponseType>();
+			std::string requester = response.data.requester;
+			std::string reason = response.data.reason;
+
+			if(response.data.tTeam)
+			{
+				CMqtt::Team tTeam = *(response.data.tTeam);
+				if(response.success)
+				{
+					std::vector<std::string> teamMembers = tTeam.members;
+					std::string teamname = tTeam.name;
+
+					for(int i = 0; i < MAX_CLIENTS; i++)
+					{
+						// inform the requester
+						if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), requester.c_str()) == 0)
+						{
+							GameContext()->SendChatTarget(i, reason.c_str());
+						}
+
+						// inform the team members except the requester
+						for(const auto &member : teamMembers)
+						{
+							if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), member.c_str()) == 0 && str_comp(Server()->ClientName(i), requester.c_str()) != 0)
+							{
+								GameContext()->SendChatTarget(i, ("Player '" + requester + "' has joined the team.").c_str());
+							}
+						}
+					}
+				}
+				else
+				{
+					for(int i = 0; i < MAX_CLIENTS; i++)
+					{
+						if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), requester.c_str()) == 0)
+						{
+							GameContext()->SendChatTarget(i, reason.c_str());
+						}
+					}
+				}
+			}
+			else
+			{
+				for(int i = 0; i < MAX_CLIENTS; i++)
+				{
+					if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), requester.c_str()) == 0)
+					{
+						GameContext()->SendChatTarget(i, reason.c_str());
+					}
+				}
+			}
+		});
+
+		return true;
+	}
+	catch(const std::exception &e)
+	{
+		dbg_msg("mqtt", "Exception occurred in RequestTAccept: %s", e.what());
+		return false;
+	}
 
 	return true;
 }

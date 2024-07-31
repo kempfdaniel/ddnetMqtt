@@ -34,6 +34,9 @@
 #include "player.h"
 #include "score.h"
 
+
+#define CONF_MQTTSERVICES
+
 // Not thread-safe!
 class CClientChatLogger : public ILogger
 {
@@ -3808,7 +3811,12 @@ void CGameContext::RegisterChatCommands()
 	Console()->Register("unninja", "", CFGFLAG_CHAT | CMDFLAG_PRACTICE, ConPracticeUnNinja, this, "Removes ninja from you");
 	Console()->Register("kill", "", CFGFLAG_CHAT | CFGFLAG_SERVER, ConProtectedKill, this, "Kill yourself when kill-protected during a long game (use f1, kill for regular kill)");
 	#ifdef CONF_MQTTSERVICES
-	Console()->Register("login","?s[code]",CFGFLAG_CHAT | CFGFLAG_SERVER, ConLogin, this, "Login into your account. If you dont have any account, go to https://awb-clan.com or https://discord.awb-clan.com");
+	//Console()->Register("login","?s[code]",CFGFLAG_CHAT | CFGFLAG_SERVER, ConLogin, this, "Login into your account. If you dont have any account, go to https://awb-clan.com or https://discord.awb-clan.com");
+	Console()->Register("tjoin","?s[team-name]",CFGFLAG_CHAT | CFGFLAG_SERVER, ConTJoin, this, "Create a Tournement Team with a custom name");
+	Console()->Register("tinvite","?r[player name]",CFGFLAG_CHAT | CFGFLAG_SERVER, ConTInvite, this, "Invite someone to your Tournement Team");
+	Console()->Register("tleave","",CFGFLAG_CHAT | CFGFLAG_SERVER, ConTLeave, this, "Leave a Tournement Team");
+	Console()->Register("taccept","?s[team-name]",CFGFLAG_CHAT | CFGFLAG_SERVER, ConTAccept, this, "Accept Tournement Team invite");
+	
 	#endif
 }
 

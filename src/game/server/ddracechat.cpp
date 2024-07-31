@@ -13,6 +13,8 @@
 
 #include <optional>
 
+#define CONF_MQTTSERVICES
+
 bool CheckClientId(int ClientId);
 
 void CGameContext::ConCredits(IConsole::IResult *pResult, void *pUserData)
@@ -2263,6 +2265,86 @@ void CGameContext::ConLogin(IConsole::IResult *pResult, void *pUserData)
 	char loginToken[128];
 	str_format(loginToken, sizeof(loginToken), "%s", pResult->GetString(0));
 	pSelf->Mqtt()->RequestLogin(pPlayer->GetCid(), loginToken);
+}
+
+void CGameContext::ConTJoin(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	CPlayer *pPlayer = pSelf->m_apPlayers[pResult->m_ClientId];
+	if(!pPlayer)
+		return;
+
+	if(pResult->NumArguments() == 0)
+	{
+		pSelf->SendChatTarget(pResult->m_ClientId, "Usage: /tjoin s[team-name]");
+		return;
+	}
+
+	char teamname[128];
+	str_format(teamname, sizeof(teamname), "%s", pResult->GetString(0));
+	pSelf->Mqtt()->RequestTJoin(pPlayer->GetCid(), teamname);
+}
+
+void CGameContext::ConTInvite(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	if(!CheckClientId(pResult->m_ClientId))
+		return;
+
+	int ClientId;
+	char aBufName[MAX_NAME_LENGTH];
+
+	if(pResult->NumArguments() == 0)
+	{
+		pSelf->SendChatTarget(pResult->m_ClientId, "Usage: /tinvite r[player-name]");
+		return;
+	} else if(pResult->NumArguments() > 0)
+	{
+		for (ClientId = 0; ClientId < MAX_CLIENTS; ClientId++)
+			if(str_comp(pResult->GetString(0), pSelf->Server()->ClientName(ClientId)) == 0)
+				break;
+
+		if(ClientId == MAX_CLIENTS)
+		{
+			pSelf->SendChatTarget(pResult->m_ClientId, "No player with this name found.");
+			return;
+		}
+
+		str_format(aBufName, sizeof(aBufName), "%s", pSelf->Server()->ClientName(ClientId));
+	}
+
+	CPlayer *pPlayer = pSelf->m_apPlayers[pResult->m_ClientId];
+	if(!pPlayer)
+		return;
+	
+
+	pSelf->Mqtt()->RequestTInvite(pPlayer->GetCid(), aBufName);
+}
+
+void CGameContext::ConTLeave(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	CPlayer *pPlayer = pSelf->m_apPlayers[pResult->m_ClientId];
+	if(!pPlayer)
+		return;
+
+	pSelf->Mqtt()->RequestTLeave(pPlayer->GetCid());
+}
+
+void CGameContext::ConTAccept(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	CPlayer *pPlayer = pSelf->m_apPlayers[pResult->m_ClientId];
+	if(!pPlayer)
+		return;
+	if(pResult->NumArguments() == 0)
+	{
+		pSelf->SendChatTarget(pResult->m_ClientId, "Usage: /taccept s[team-name]");
+		return;
+	}
+	char teamname[128];
+	str_format(teamname, sizeof(teamname), "%s", pResult->GetString(0));
+	pSelf->Mqtt()->RequestTAccept(pPlayer->GetCid(), teamname);
 }
 
 #endif

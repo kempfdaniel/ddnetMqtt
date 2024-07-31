@@ -21,7 +21,7 @@ enum
 	CHANNEL_INGAME,
 	CHANNEL_RESPONSETYPE_RCON = 0,
 	CHANNEL_RESPONSETYPE_CHAT,
-	CHANNEL_RESPONSETYPE_RESENDMAP,
+	CHANNEL_RESPONSETYPE_RESENDMAP
 };
 
 
@@ -50,6 +50,11 @@ public:
 
 	/* EXTRA FUNCTIONS */
 	virtual bool RequestLogin(const int &clientId, const std::string &logintoken) = 0;
+	virtual bool RequestTJoin(const int &clientId, const std::string &teamname) = 0;
+	virtual bool RequestTInvite(const int &clientId, const std::string &playername) = 0;
+	virtual bool RequestTLeave(const int &clientId) = 0;
+	virtual bool RequestTAccept(const int &clientId, const std::string &teamname) = 0;
+
 };
 IMqtt *CreateMqtt();
 #endif // ENGINE_MQTT_H

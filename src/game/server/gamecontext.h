@@ -524,6 +524,10 @@ private:
 	static void ConUnFreezeHammer(IConsole::IResult *pResult, void *pUserData);
 	#ifdef CONF_MQTTSERVICES
 	static void ConLogin(IConsole::IResult *pResult, void *pUserData);
+	static void ConTJoin(IConsole::IResult *pResult, void *pUserData);
+	static void ConTInvite(IConsole::IResult *pResult, void *pUserData);
+	static void ConTLeave(IConsole::IResult *pResult, void *pUserData);
+	static void ConTAccept(IConsole::IResult *pResult, void *pUserData);
 	#endif
 	CCharacter *GetPracticeCharacter(IConsole::IResult *pResult);
 
