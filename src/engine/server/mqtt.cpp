@@ -311,6 +311,8 @@ bool CMqtt::RequestLogin(const int &clientId, const std::string &logintoken)
 	WaitForResponse(responseTopic, [this](const std::string &response) {
 		json jsonResponse = json::parse(response);
 		// TODO: Handle the response
+		//! Server should crash if status is not set. 
+		//! This is just a placeholder. Make sure to handle the response properly with try-catch
 		if(jsonResponse["status"] == "success")
 		{
 			dbg_msg("mqtt", "Login successful");
