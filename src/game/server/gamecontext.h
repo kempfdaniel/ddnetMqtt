@@ -528,6 +528,7 @@ private:
 	static void ConTInvite(IConsole::IResult *pResult, void *pUserData);
 	static void ConTLeave(IConsole::IResult *pResult, void *pUserData);
 	static void ConTAccept(IConsole::IResult *pResult, void *pUserData);
+	static void ConTournement(IConsole::IResult *pResult, void *pUserData);
 	#endif
 	CCharacter *GetPracticeCharacter(IConsole::IResult *pResult);
 

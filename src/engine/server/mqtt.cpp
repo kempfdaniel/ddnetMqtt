@@ -692,6 +692,41 @@ bool CMqtt::RequestTAccept(const int &clientId, const std::string &teamname)
 	return true;
 }
 
+bool CMqtt::RequestTournementMode(std::string mode, int teamSize) {
+	if(!m_connected)
+	{
+		dbg_msg("mqtt", "Not connected to MQTT broker, cannot request TournementStart");
+		return false;
+	}
+
+	json payload;
+	std::string responseTopic = GetChannelName(CHANNEL_RESPONSE) + "/" + RandomUuid();
+	char pTeamSize[128];
+	str_format(pTeamSize, sizeof(pTeamSize), "%d", teamSize);
+
+	payload["action"] = "TMode";
+	payload["teamSize"] = pTeamSize;
+	payload["responseTopic"] = responseTopic;
+	PublishWithResponse(CHANNEL_RESPONSE, payload.dump(), responseTopic);
+
+	WaitForResponse(responseTopic, [this](const std::string &mqttResponse) {
+		json json_data = nlohmann::json::parse(mqttResponse);
+		CMqtt::ResponseType response = json_data.get<CMqtt::ResponseType>();
+		std::string requester = response.data.requester;
+		std::string reason = response.data.reason;
+
+		for(int i = 0; i < MAX_CLIENTS; i++)
+		{
+			if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), requester.c_str()) == 0)
+			{
+				GameContext()->SendChatTarget(i, reason.c_str());
+			}
+		}
+	});
+
+	return true;
+}
+
 void CMqtt::HandleMessage(const std::string &topic, const std::string &payload)
 {
 	try

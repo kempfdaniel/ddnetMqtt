@@ -54,6 +54,7 @@ public:
 	virtual bool RequestTInvite(const int &clientId, const std::string &playername) = 0;
 	virtual bool RequestTLeave(const int &clientId) = 0;
 	virtual bool RequestTAccept(const int &clientId, const std::string &teamname) = 0;
+	virtual bool RequestTournementMode(std::string mode, int teamSize) = 0;
 
 };
 IMqtt *CreateMqtt();

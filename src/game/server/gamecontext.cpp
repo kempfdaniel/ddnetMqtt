@@ -3720,7 +3720,10 @@ void CGameContext::RegisterDDRaceCommands()
 
 	Console()->Register("freezehammer", "v[id]", CFGFLAG_SERVER | CMDFLAG_TEST, ConFreezeHammer, this, "Gives a player Freeze Hammer");
 	Console()->Register("unfreezehammer", "v[id]", CFGFLAG_SERVER | CMDFLAG_TEST, ConUnFreezeHammer, this, "Removes Freeze Hammer from a player");
-}
+
+	Console()->Register("tournement", "s[mode] i[team_size]", CFGFLAG_SERVER, ConTournement, this, "Set the server to tournement mode ['Idle', 'pre', 'start', 'next', 'end'] with team size i");
+	
+	}
 
 void CGameContext::RegisterChatCommands()
 {

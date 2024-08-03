@@ -2347,4 +2347,36 @@ void CGameContext::ConTAccept(IConsole::IResult *pResult, void *pUserData)
 	pSelf->Mqtt()->RequestTAccept(pPlayer->GetCid(), teamname);
 }
 
+void CGameContext::ConTournement(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	CPlayer *pPlayer = pSelf->m_apPlayers[pResult->m_ClientId];
+	if(!pPlayer)
+		return;
+
+	std::string mode = pResult->NumArguments() > 0 ? pResult->GetString(0) : "default";
+	int teamSize = pResult->NumArguments() > 1 ? pResult->GetInteger(1) : 1;
+	
+	// check if mode is valid prestart, prestop, start, stop, reset
+	if(mode != "prestart" && mode != "prestop" && mode != "start" && mode != "stop" && mode != "reset")
+	{
+		pSelf->Console()->Print(
+				IConsole::OUTPUT_LEVEL_STANDARD,
+				"chatresp",
+				"Invalid mode. Accepted values: prestart, prestop, start, stop, reset");
+		return;
+	}
+	// teamsize between 1 and 30
+	if(teamSize < 1 || teamSize > 30)
+	{
+		pSelf->Console()->Print(
+				IConsole::OUTPUT_LEVEL_STANDARD,
+				"chatresp",
+				"Invalid team size. Accepted values: 1-30");
+		return;
+	}
+
+
+	pSelf->Mqtt()->RequestTournementMode(mode, teamSize);
+}
 #endif

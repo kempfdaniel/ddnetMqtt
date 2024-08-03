@@ -162,6 +162,9 @@ public:
 	bool m_rHeartbeat;
 	bool m_rServerUpdate;
 
+
+	std::string tmState = "idle";
+
 	/* SETTER AND GETTER */
 	void SetMapUpdate(bool update) override { m_rMapUpdate = update; }
 	void SetHeartbeat(bool update) override { m_rHeartbeat = update; }
@@ -188,6 +191,7 @@ public:
 	bool RequestTInvite(const int &clientId, const std::string &token) override;
 	bool RequestTLeave(const int &clientId) override;
 	bool RequestTAccept(const int &clientId, const std::string &token) override;
+	bool RequestTournementMode(std::string mode, int teamSize) override;
 
 private:
 	std::unordered_map<std::string, std::function<void(const std::string &)>> m_responseCallbacks;
