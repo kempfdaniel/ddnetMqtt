@@ -1,3 +1,32 @@
+
+The server is only running on linux because of the mqtt library.
+
+### INSTALL mqtt broker for linux (ubuntu)
+```bash
+    mkdir mqttlibs &&
+    cd mqttlibs &&
+    sudo apt-get update &&
+    sudo apt-get install cmake libssl-dev &&
+    git clone https://github.com/eclipse/paho.mqtt.c.git &&
+    cd paho.mqtt.c &&
+    cmake -Bbuild -H. -DPAHO_BUILD_STATIC=TRUE -DPAHO_BUILD_SHARED=TRUE &&
+    sudo cmake --build build/ --target install &&
+    cd .. &&
+    git clone https://github.com/eclipse/paho.mqtt.cpp.git &&
+    cd paho.mqtt.cpp &&
+    cmake -Bbuild -H. -DPAHO_BUILD_STATIC=TRUE -DPAHO_BUILD_SHARED=TRUE &&
+    sudo cmake --build build/ --target install &&
+    cd ..
+```
+
+Its possible that the `paho.mqtt.cpp.git ` gives an error but it should be fine. 
+
+> Default the -DMQTTSERVICES=ON is set in the cmake command. If you want to disable the mqtt services you can set it to OFF.
+
+
+
+# End of the custom README.md   
+
 [![DDraceNetwork](https://ddnet.org/ddnet-small.png)](https://ddnet.org) [![](https://github.com/ddnet/ddnet/workflows/Build/badge.svg)](https://github.com/ddnet/ddnet/actions?query=workflow%3ABuild+event%3Apush+branch%3Amaster) [![](https://codecov.io/gh/ddnet/ddnet/branch/master/graph/badge.svg)](https://codecov.io/gh/ddnet/ddnet/branch/master)
 
 Our own flavor of DDRace, a Teeworlds mod. See the [website](https://ddnet.org) for more information.
