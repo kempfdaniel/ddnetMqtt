@@ -3,6 +3,7 @@ The server is only running on linux because of the mqtt library.
 
 ### INSTALL mqtt broker for linux (ubuntu)
 ```bash
+    sudo apt install nlohmann-json3-dev && 
     mkdir mqttlibs &&
     cd mqttlibs &&
     sudo apt-get update &&
