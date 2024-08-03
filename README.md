@@ -24,6 +24,21 @@ Its possible that the `paho.mqtt.cpp.git ` gives an error but it should be fine.
 > Default the -DMQTTSERVICES=ON is set in the cmake command. If you want to disable the mqtt services you can set it to OFF.
 
 
+Add the following lines into autoexec_server.cfg
+```bash
+    sv_sid "FSM" 
+    sv_mqtt_address "tcp://localhost:1883"
+    sv_mqtt_username "admin"
+    sv_mqtt_password "instar"
+    sv_mqtt_topic "ddnet"
+```
+Please change all the values to your own values.
+* `sv_sid`: The server id of the server (Like ClientID in mqtt)
+* `sv_mqtt_address`: The address of the mqtt broker
+* `sv_mqtt_username`: The username of the mqtt broker
+* `sv_mqtt_password`: The password of the mqtt broker
+* `sv_mqtt_topic`: The topic of the mqtt broker (Like `TOPIC`/`ServerID`/`CHANNELS`)
+
 
 # End of the custom README.md   
 
