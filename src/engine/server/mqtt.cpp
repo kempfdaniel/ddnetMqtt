@@ -112,7 +112,7 @@ void CMqtt::Run()
 				m_missedMessages.clear();
 			}
 			// std::this_thread::sleep_for(std::chrono::milliseconds(20));
-		
+
 			// Handle the inmovable players
 			for(const auto &player : m_inmovablePlayers)
 			{
@@ -884,8 +884,27 @@ void CMqtt::HandleMessage(const std::string &topic, const std::string &payload)
 			}
 
 			break;
+		}		
+		case CHANNEL_RESPONSETYPE_RESETTEAMS:
+		{
+			// move all players to team 0 and unlock it again
+			auto *pController = GameContext()->m_pController;
+			for(int i = 0; i < MAX_CLIENTS; i++)
+			{
+				if(m_pGameContext->m_apPlayers[i])
+				{
+					CCharacter *pChr = GameContext()->GetPlayerChar(i);
+					CPlayer *pPlayer = GameContext()->m_apPlayers[i];
+					CGameContext *pGameContext = (CGameContext *)m_pGameContext;
+					pPlayer->KillCharacter(WEAPON_GAME);
+					pController->Teams().SetForceCharacterTeam(i, 0);
+				}
+			}
+
+			break;
 		}
 		}
+
 	}
 	catch(const std::exception &e)
 	{
