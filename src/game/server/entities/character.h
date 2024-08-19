@@ -208,6 +208,7 @@ public:
 	int m_StartTime;
 	vec2 m_PrevPos;
 	int m_TeleCheckpoint;
+	bool m_moveable;
 
 	int m_TimeCpBroadcastEndTick;
 	int m_LastTimeCp;

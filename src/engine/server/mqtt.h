@@ -34,17 +34,17 @@ class CMqtt : public IMqtt
 	class IGameServer *GameServer() const { return m_pGameServer; }
 	class CGameContext *GameContext() const { return m_pGameContext; }
 
-	std::unique_ptr<mqtt::async_client> client_; // Verwenden Sie unique_ptr für den Client
+	std::unique_ptr<mqtt::async_client> client_; // Use unique_ptr for the client
 	mqtt::connect_options connOpts_;
 
-	// Definiere die Struktur für Player (optional, falls benötigt)
+	// Define the structure for Player (optional, if needed)
 	struct Player
 	{
 		std::string username;
 		std::shared_ptr<std::string> team;
 	};
 
-	// Definiere die Struktur für Team
+	// Define the structure for Team
 	struct Team
 	{
 		std::string name;
@@ -53,7 +53,7 @@ class CMqtt : public IMqtt
 		std::shared_ptr<std::vector<std::string>> invites;
 	};
 
-	// Definiere die Struktur für die Daten im ResponseType
+	// Define the structure for the data in ResponseType
 	struct ResponseData
 	{
 		std::string reason;
@@ -62,14 +62,14 @@ class CMqtt : public IMqtt
 		std::shared_ptr<std::string> invitedPlayer;
 	};
 
-	// Definiere die Struktur für ResponseType
+	// Define the structure for ResponseType
 	struct ResponseType
 	{
 		bool success;
 		ResponseData data;
 	};
 
-	// Implementiere to_json und from_json für Player
+	// Implement to_json and from_json for Player
 	friend void to_json(nlohmann::json &j, const Player &p)
 	{
 		j = nlohmann::json{{"username", p.username}};
@@ -88,7 +88,7 @@ class CMqtt : public IMqtt
 		}
 	}
 
-	// Implementiere to_json und from_json für Team
+	// Implement to_json and from_json for Team
 	friend void to_json(nlohmann::json &j, const Team &t)
 	{
 		j = nlohmann::json{{"name", t.name}, {"leader", t.leader}, {"members", t.members}};
@@ -109,7 +109,7 @@ class CMqtt : public IMqtt
 		}
 	}
 
-	// Implementiere to_json und from_json für ResponseData
+	// Implement to_json and from_json for ResponseData
 	friend void to_json(nlohmann::json &j, const ResponseData &rd)
 	{
 		j = nlohmann::json{{"reason", rd.reason}, {"requester", rd.requester}};
@@ -137,7 +137,7 @@ class CMqtt : public IMqtt
 		}
 	}
 
-	// Implementiere to_json und from_json für ResponseType
+	// Implement to_json and from_json for ResponseType
 	friend void to_json(nlohmann::json &j, const ResponseType &rt)
 	{
 		j = nlohmann::json{{"success", rt.success}, {"data", rt.data}};
@@ -162,8 +162,16 @@ public:
 	bool m_rHeartbeat;
 	bool m_rServerUpdate;
 
+	enum class TmState
+	{
+		Idle,
+		RegisterStart,
+		RegisterEnd,
+		Racing,
+		Finished
+	};
 
-	std::string tmState = "idle";
+	TmState tmState = TmState::Idle;
 
 	/* SETTER AND GETTER */
 	void SetMapUpdate(bool update) override { m_rMapUpdate = update; }
@@ -192,16 +200,19 @@ public:
 	bool RequestTLeave(const int &clientId) override;
 	bool RequestTAccept(const int &clientId, const std::string &token) override;
 	bool RequestTournementMode(std::string mode, int teamSize) override;
-
+	void Simulate(CPlayer *pPlayer) override;
 private:
 	std::unordered_map<std::string, std::function<void(const std::string &)>> m_responseCallbacks;
 	bool m_connected;
 	std::unordered_map<int, json> m_missedMessages;
+	// list of players who need to get inmovable
+	std::vector<int> m_inmovablePlayers;
 
 	json SerializeMapInfo();
 	json SerializeServer();
 	json SerializePlayer(CPlayer *pPlayer, int JID);
 	void HandleMessage(const std::string &topic, const std::string &payload);
+	void SendRconLine(int ClientId, const char *pLine);
 };
 
 #endif // ENGINE_SERVER_MQTT_H

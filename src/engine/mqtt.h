@@ -3,7 +3,9 @@
 
 #include "kernel.h"
 #include <memory>
+#include <game/server/player.h>
 #include <nlohmann/json.hpp>
+
 
 enum
 {
@@ -18,10 +20,12 @@ enum
 	CHANNEL_PLAYERINFO,
 	CHANNEL_SERVERINFO,
 	CHANNEL_RESPONSE,
+	CHANNEL_EXECUTE,
 	CHANNEL_INGAME,
 	CHANNEL_RESPONSETYPE_RCON = 0,
 	CHANNEL_RESPONSETYPE_CHAT,
-	CHANNEL_RESPONSETYPE_RESENDMAP
+	CHANNEL_RESPONSETYPE_RESENDMAP,
+	CHANNEL_RESPONSETYPE_CREATETEAM,
 };
 
 
@@ -55,6 +59,7 @@ public:
 	virtual bool RequestTLeave(const int &clientId) = 0;
 	virtual bool RequestTAccept(const int &clientId, const std::string &teamname) = 0;
 	virtual bool RequestTournementMode(std::string mode, int teamSize) = 0;
+	virtual void Simulate(CPlayer *pPlayer) = 0;
 
 };
 IMqtt *CreateMqtt();

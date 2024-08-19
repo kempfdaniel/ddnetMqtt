@@ -2,6 +2,7 @@
 
 #include "mqtt.h"
 
+#include "game/server/gamecontroller.h"
 #include <atomic>
 #include <base/system.h>
 #include <game/server/entities/character.h>
@@ -72,7 +73,7 @@ void CMqtt::Init()
 			}
 		});
 
-		// Subscribe(CHANNEL_RESPONSE);
+		Subscribe(CHANNEL_EXECUTE);
 
 		dbg_msg("mqtt", "Connected to the MQTT broker with topic %s", prefix.c_str());
 		Publish(CHANNEL_SERVER, std::string("Connected to the MQTT broker"));
@@ -111,6 +112,20 @@ void CMqtt::Run()
 				m_missedMessages.clear();
 			}
 			// std::this_thread::sleep_for(std::chrono::milliseconds(20));
+		
+			// Handle the inmovable players
+			for(const auto &player : m_inmovablePlayers)
+			{
+				if(m_pGameContext->m_apPlayers[player] && m_pGameContext->m_apPlayers[player]->GetCharacter())
+				{
+					m_pGameContext->m_apPlayers[player]->GetCharacter()->m_moveable = false;
+					m_pGameContext->m_apPlayers[player]->GetCharacter()->Freeze();
+					m_inmovablePlayers.erase(std::remove(m_inmovablePlayers.begin(), m_inmovablePlayers.end(), player), m_inmovablePlayers.end());
+					break;
+				}
+			}
+
+			std::this_thread::sleep_for(std::chrono::milliseconds(20));
 		}
 	}
 	catch(const std::exception &e)
@@ -250,6 +265,8 @@ std::string CMqtt::GetChannelName(int channel)
 		return std::string(prefix) + "/serverinfo";
 	case CHANNEL_INGAME:
 		return std::string(prefix) + "/ingame";
+	case CHANNEL_EXECUTE:
+		return std::string(prefix) + "/execute";
 	default:
 		return std::string(prefix) + "/default";
 	}
@@ -311,9 +328,9 @@ bool CMqtt::RequestLogin(const int &clientId, const std::string &logintoken)
 	PublishWithResponse(CHANNEL_LOGIN, payload.dump(), responseTopic);
 
 	WaitForResponse(responseTopic, [this](const std::string &response) {
-		json jsonResponse = json::parse(response);
+		json jsonResponse = json::parse(response.c_str());
 		// TODO: Handle the response
-		//! Server should crash if status is not set. 
+		//! Server should crash if status is not set.
 		//! This is just a placeholder. Make sure to handle the response properly with try-catch
 		if(jsonResponse["status"] == "success")
 		{
@@ -370,7 +387,7 @@ bool CMqtt::RequestTJoin(const int &clientId, const std::string &teamname)
 	PublishWithResponse(CHANNEL_RESPONSE, payload.dump(), responseTopic);
 
 	WaitForResponse(responseTopic, [this](const std::string &mqttResponse) {
-		json json_data = nlohmann::json::parse(mqttResponse);
+		json json_data = nlohmann::json::parse(mqttResponse.c_str());
 		CMqtt::ResponseType response = json_data.get<CMqtt::ResponseType>();
 		std::string requester = response.data.requester;
 		std::string reason = response.data.reason;
@@ -427,7 +444,7 @@ bool CMqtt::RequestTInvite(const int &clientId, const std::string &playername)
 	PublishWithResponse(CHANNEL_RESPONSE, payload.dump(), responseTopic);
 
 	WaitForResponse(responseTopic, [this](const std::string &mqttResponse) {
-		json json_data = nlohmann::json::parse(mqttResponse);
+		json json_data = nlohmann::json::parse(mqttResponse.c_str());
 		CMqtt::ResponseType response = json_data.get<CMqtt::ResponseType>();
 		std::string requester = response.data.requester;
 		std::string reason = response.data.reason;
@@ -528,7 +545,7 @@ bool CMqtt::RequestTLeave(const int &clientId)
 	PublishWithResponse(CHANNEL_RESPONSE, payload.dump(), responseTopic);
 
 	WaitForResponse(responseTopic, [this](const std::string &mqttResponse) {
-		json json_data = nlohmann::json::parse(mqttResponse);
+		json json_data = nlohmann::json::parse(mqttResponse.c_str());
 		CMqtt::ResponseType response = json_data.get<CMqtt::ResponseType>();
 		std::string requester = response.data.requester;
 		std::string reason = response.data.reason;
@@ -559,7 +576,7 @@ bool CMqtt::RequestTLeave(const int &clientId)
 					}
 				}
 
-				//TODO: Logic to announce the new leader
+				// TODO: Logic to announce the new leader
 			}
 			else
 			{
@@ -629,7 +646,7 @@ bool CMqtt::RequestTAccept(const int &clientId, const std::string &teamname)
 		PublishWithResponse(CHANNEL_RESPONSE, payload.dump(), responseTopic);
 
 		WaitForResponse(responseTopic, [this](const std::string &mqttResponse) {
-			json json_data = nlohmann::json::parse(mqttResponse);
+			json json_data = nlohmann::json::parse(mqttResponse.c_str());
 			CMqtt::ResponseType response = json_data.get<CMqtt::ResponseType>();
 			std::string requester = response.data.requester;
 			std::string reason = response.data.reason;
@@ -694,7 +711,8 @@ bool CMqtt::RequestTAccept(const int &clientId, const std::string &teamname)
 	return true;
 }
 
-bool CMqtt::RequestTournementMode(std::string mode, int teamSize) {
+bool CMqtt::RequestTournementMode(std::string mode, int teamSize)
+{
 	if(!m_connected)
 	{
 		dbg_msg("mqtt", "Not connected to MQTT broker, cannot request TournementStart");
@@ -709,38 +727,77 @@ bool CMqtt::RequestTournementMode(std::string mode, int teamSize) {
 	payload["action"] = "TMode";
 	payload["teamSize"] = pTeamSize;
 	payload["responseTopic"] = responseTopic;
+	payload["mode"] = mode;
+
 	PublishWithResponse(CHANNEL_RESPONSE, payload.dump(), responseTopic);
-
-	WaitForResponse(responseTopic, [this](const std::string &mqttResponse) {
-		json json_data = nlohmann::json::parse(mqttResponse);
-		CMqtt::ResponseType response = json_data.get<CMqtt::ResponseType>();
-		std::string requester = response.data.requester;
-		std::string reason = response.data.reason;
-
-		for(int i = 0; i < MAX_CLIENTS; i++)
+	WaitForResponse(responseTopic, [this, mode](const std::string &mqttResponse) {
+		try
 		{
-			if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), requester.c_str()) == 0)
+			json json_data = json::parse(mqttResponse);
+
+			if(!json_data.is_object())
 			{
-				GameContext()->SendChatTarget(i, reason.c_str());
+				SendRconLine(-1, "Invalid JSON response format: root is not an object");
+				return;
 			}
+
+			if(!json_data.contains("success") || !json_data["success"].is_boolean())
+			{
+				SendRconLine(-1, "Invalid JSON response format: missing or invalid 'success' key");
+				return;
+			}
+
+			bool success = json_data["success"].get<bool>();
+			std::string reason = "No reason provided";
+
+			if(json_data.contains("data") && json_data["data"].is_object() &&
+				json_data["data"].contains("reason") && json_data["data"]["reason"].is_string())
+			{
+				reason = json_data["data"]["reason"].get<std::string>();
+			}
+
+			std::string response;
+			if(success)
+			{
+				response = "Successfully changed tournament mode to " + mode + "; Reason: " + reason;
+			}
+			else
+			{
+				response = "Failed to change tournament mode, reason: " + reason;
+			}
+			SendRconLine(-1, response.c_str());
+		}
+		catch(const nlohmann::json::exception &e)
+		{
+			std::string error_msg = "JSON parsing error: " + std::string(e.what());
+			SendRconLine(-1, error_msg.c_str());
 		}
 	});
 
 	return true;
 }
 
+void CMqtt::SendRconLine(int ClientId, const char *pLine)
+{
+	CMsgPacker Msg(NETMSG_RCON_LINE, true);
+	Msg.AddString(pLine, 512);
+	Server()->SendMsg(&Msg, MSGFLAG_VITAL, ClientId);
+}
+
 void CMqtt::HandleMessage(const std::string &topic, const std::string &payload)
 {
 	try
 	{
-		if(!(str_comp_nocase(topic.c_str(), GetChannelName(CHANNEL_RESPONSE).c_str()) == 0))
+		if(!(str_comp_nocase(topic.c_str(), GetChannelName(CHANNEL_EXECUTE).c_str()) == 0))
 		{
 			return;
 		}
 
-		json response = json::parse(payload);
+		json response = json::parse(payload.c_str());
 		const int type = response["type"].get<int>();
 
+		dbg_msg("mqtt", "Received message of type %d", type);
+		dbg_msg("mqtt", "Payload: %s", payload.c_str());
 		switch(type)
 		{
 		case CHANNEL_RESPONSETYPE_RCON:
@@ -765,9 +822,67 @@ void CMqtt::HandleMessage(const std::string &topic, const std::string &payload)
 			m_rMapUpdate = true;
 			break;
 		}
-		default:
+		case CHANNEL_RESPONSETYPE_CREATETEAM:
 		{
-			dbg_msg("mqtt", "Unhandled type received in JSON response.");
+			// Create a team
+			std::string teamname = response["data"]["name"].get<std::string>();
+			std::string leader = response["data"]["leader"].get<std::string>();
+			unsigned int teamSize = std::stoi(response["data"]["teamsize"].get<std::string>());
+			std::vector<std::string> members = response["data"]["members"].get<std::vector<std::string>>();
+			unsigned int teamnumber = response["data"]["teamnumber"].get<int>();
+
+			if(teamSize != members.size())
+			{
+				GameContext()->SendChat(-1, TEAM_ALL, ("Team '" + teamname + "' is not valid. Wrong teamsize.").c_str());
+				return;
+			}
+
+			// Check if every member is a valid player in the server
+			for(const auto &member : members)
+			{
+				bool found = false;
+				for(int i = 0; i < MAX_CLIENTS; i++)
+				{
+					if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), member.c_str()) == 0)
+					{
+						found = true;
+						break;
+					}
+				}
+				if(!found)
+				{
+					GameContext()->SendChat(-1, TEAM_ALL, ("Team '" + teamname + "' is not valid. Player '" + member + "' not found.").c_str());
+					return;
+				}
+			}
+
+			auto *pController = GameContext()->m_pController;
+			// Find empty team and add members and lock it
+			if(teamnumber == -1)
+			{
+				GameContext()->SendChat(-1, TEAM_ALL, ("No empty team found for team '" + teamname + "'").c_str());
+				return;
+			}
+
+			// Add members to team and lock team
+			pController->Teams().SetTeamLock(teamnumber, true);
+			for(const auto &member : members)
+			{
+				for(int i = 0; i < MAX_CLIENTS; i++)
+				{
+					if(m_pGameContext->m_apPlayers[i] && str_comp(Server()->ClientName(i), member.c_str()) == 0)
+					{
+						CCharacter *pChr = GameContext()->GetPlayerChar(i);
+						CPlayer *pPlayer = GameContext()->m_apPlayers[i];
+						CGameContext *pGameContext = (CGameContext *)m_pGameContext;
+						pPlayer->KillCharacter(WEAPON_GAME);
+						pController->Teams().SetForceCharacterTeam(i, teamnumber);
+						m_inmovablePlayers.push_back(i);
+						GameContext()->SendBroadcast(("You fight for team '" + teamname + "'\nYou have 10 Minutes time to\n1.Finish first\n2.Best time\n3.Most Finishes").c_str(), i);
+					}
+				}
+			}
+
 			break;
 		}
 		}
@@ -776,6 +891,39 @@ void CMqtt::HandleMessage(const std::string &topic, const std::string &payload)
 	{
 		dbg_msg("mqtt", "Error handling message: %s", e.what());
 	}
+}
+
+void CMqtt::Simulate(CPlayer *pPlayer)
+{
+	// Funktion in einem separaten Thread ausführen
+	std::thread simulationThread([this, pPlayer]() {
+		// reset
+		this->RequestTournementMode("reset", 1);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+
+		// Erstelle Turnier
+		this->RequestTournementMode("create", 1);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+
+		this->RequestTournementMode("pre", 1);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+
+		// Teams zuweisen
+		this->RequestTJoin(0, "Team1");
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+
+		this->RequestTJoin(1, "Team2");
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+
+		// Turnier starten
+		this->RequestTournementMode("assign", 1);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+
+		this->RequestTournementMode("start", 1);
+	});
+
+	// Optional: Warten, bis der Thread fertig ist
+	simulationThread.join();
 }
 
 json CMqtt::SerializeMapInfo()

@@ -2258,6 +2258,17 @@ void CGameContext::ConTimeCP(IConsole::IResult *pResult, void *pUserData)
 }
 
 #ifdef CONF_MQTTSERVICES
+void CGameContext::ConSimulate(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	CPlayer *pPlayer = pSelf->m_apPlayers[pResult->m_ClientId];
+
+	pPlayer->GetCharacter()->m_moveable = false;
+	
+	pSelf->Mqtt()->Simulate(pPlayer);
+}
+
+
 void CGameContext::ConLogin(IConsole::IResult *pResult, void *pUserData)
 {
 	CGameContext *pSelf = (CGameContext *)pUserData;
@@ -2270,6 +2281,8 @@ void CGameContext::ConLogin(IConsole::IResult *pResult, void *pUserData)
 		pSelf->SendChatTarget(pResult->m_ClientId, "Usage: /login s[code]");
 		return;
 	}
+
+	dbg_msg("mqtt", "Requesting login");
 
 	char loginToken[128];
 	str_format(loginToken, sizeof(loginToken), "%s", pResult->GetString(0));
@@ -2366,13 +2379,13 @@ void CGameContext::ConTournement(IConsole::IResult *pResult, void *pUserData)
 	std::string mode = pResult->NumArguments() > 0 ? pResult->GetString(0) : "default";
 	int teamSize = pResult->NumArguments() > 1 ? pResult->GetInteger(1) : 1;
 	
-	// check if mode is valid prestart, prestop, start, stop, reset
-	if(mode != "prestart" && mode != "prestop" && mode != "start" && mode != "stop" && mode != "reset")
+	// valid modes: 'create' | 'pre' | 'assign' |  'start' | 'stop' | 'next' |'reset';
+	if(mode != "create" && mode != "pre" && mode != "assign" && mode != "start" && mode != "stop" && mode != "next" && mode != "reset")
 	{
 		pSelf->Console()->Print(
 				IConsole::OUTPUT_LEVEL_STANDARD,
 				"chatresp",
-				"Invalid mode. Accepted values: prestart, prestop, start, stop, reset");
+				"Invalid mode. Accepted values: create, pre, assign, start, stop, next, reset\ncreate: create a new tournement\npre: Allow players to create teams\nassign: Assign players to teams\nstart: Start the tournement\nstop: Stop the tournement\nnext: Start the next round\nreset: Reset the tournement");
 		return;
 	}
 	// teamsize between 1 and 30
@@ -2388,4 +2401,40 @@ void CGameContext::ConTournement(IConsole::IResult *pResult, void *pUserData)
 
 	pSelf->Mqtt()->RequestTournementMode(mode, teamSize);
 }
+
+void CGameContext::ConSetTeamForce(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	auto *pController = pSelf->m_pController;
+
+	int Target = pResult->GetVictim();
+	int Team = pResult->GetInteger(1);
+
+	if(Team < TEAM_FLOCK || Team >= TEAM_SUPER)
+		return;
+
+	CCharacter *pChr = pSelf->GetPlayerChar(Target);
+
+	if((pSelf->GetDDRaceTeam(Target) && pController->Teams().GetDDRaceState(pSelf->m_apPlayers[Target]) == DDRACE_STARTED) || (pChr && pController->Teams().IsPractice(pChr->Team())))
+		pSelf->m_apPlayers[Target]->KillCharacter(WEAPON_GAME);
+
+	pController->Teams().SetForceCharacterTeam(Target, Team);
+}
+
+void CGameContext::ConSetTeamLock(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	auto *pController = pSelf->m_pController;
+
+
+	int Team = pResult->GetInteger(0);
+	bool Lock = pResult->NumArguments() > 1 ? pResult->GetInteger(1) : true;
+
+	if(Team < TEAM_FLOCK || Team >= TEAM_SUPER)
+		return;
+
+	pController->Teams().SetTeamLock(Team, Lock);
+}
+	
+
 #endif

@@ -30,6 +30,7 @@ CCharacter::CCharacter(CGameWorld *pWorld, CNetObj_PlayerInput LastInput) :
 	m_Armor = 0;
 	m_TriggeredEvents7 = 0;
 	m_StrongWeakId = 0;
+	m_moveable = true;
 
 	m_Input = LastInput;
 	// never initialize both to zero
@@ -53,8 +54,7 @@ void CCharacter::Reset()
 }
 
 bool CCharacter::Spawn(CPlayer *pPlayer, vec2 Pos)
-{
-	m_EmoteStop = -1;
+{	m_EmoteStop = -1;
 	m_LastAction = -1;
 	m_LastNoAmmoSound = -1;
 	m_LastWeapon = WEAPON_HAMMER;
@@ -2088,6 +2088,13 @@ void CCharacter::DDRaceTick()
 		m_Input.m_Direction = 0;
 		m_Input.m_Jump = 0;
 		m_Input.m_Hook = 0;
+		if(!m_moveable)
+		{
+			m_Core.m_Vel = vec2(0, 0);
+			m_Core.m_Pos = m_PrevPos;
+		}
+
+
 		if(m_FreezeTime == 1)
 			UnFreeze();
 	}
@@ -2344,6 +2351,7 @@ void CCharacter::DDRaceInit()
 	}
 	m_Core.m_Jumps = 2;
 	m_FreezeHammer = false;
+	m_moveable = true;
 
 	int Team = Teams()->m_Core.Team(m_Core.m_Id);
 

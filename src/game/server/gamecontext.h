@@ -523,12 +523,15 @@ private:
 	static void ConFreezeHammer(IConsole::IResult *pResult, void *pUserData);
 	static void ConUnFreezeHammer(IConsole::IResult *pResult, void *pUserData);
 	#ifdef CONF_MQTTSERVICES
+	static void ConSimulate(IConsole::IResult *pResult, void *pUserData);
 	static void ConLogin(IConsole::IResult *pResult, void *pUserData);
 	static void ConTJoin(IConsole::IResult *pResult, void *pUserData);
 	static void ConTInvite(IConsole::IResult *pResult, void *pUserData);
 	static void ConTLeave(IConsole::IResult *pResult, void *pUserData);
 	static void ConTAccept(IConsole::IResult *pResult, void *pUserData);
 	static void ConTournement(IConsole::IResult *pResult, void *pUserData);
+	static void ConSetTeamForce(IConsole::IResult *pResult, void *pUserData);
+	static void ConSetTeamLock(IConsole::IResult *pResult, void *pUserData);
 	#endif
 	CCharacter *GetPracticeCharacter(IConsole::IResult *pResult);
 

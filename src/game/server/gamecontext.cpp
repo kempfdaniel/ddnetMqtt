@@ -3721,8 +3721,9 @@ void CGameContext::RegisterDDRaceCommands()
 	Console()->Register("freezehammer", "v[id]", CFGFLAG_SERVER | CMDFLAG_TEST, ConFreezeHammer, this, "Gives a player Freeze Hammer");
 	Console()->Register("unfreezehammer", "v[id]", CFGFLAG_SERVER | CMDFLAG_TEST, ConUnFreezeHammer, this, "Removes Freeze Hammer from a player");
 
-	Console()->Register("tournement", "s[mode] i[team_size]", CFGFLAG_SERVER, ConTournement, this, "Set the server to tournement mode ['Idle', 'pre', 'start', 'next', 'end'] with team size i");
-	
+	Console()->Register("tournement", "s[mode] ?i[team_size]", CFGFLAG_SERVER, ConTournement, this, "Set the server to tournement mode ['create' | 'pre' | 'assign' |  'start' | 'stop' | 'next' |'reset'] with team size i");
+	Console()->Register("set_team_force", "v[id] i[team]", CFGFLAG_SERVER, ConSetTeamForce, this, "Set team of player to team");
+	Console()->Register("set_team_lock", "i[team] i[lock]", CFGFLAG_SERVER, ConSetTeamLock, this, "Lock or unlock team");
 	}
 
 void CGameContext::RegisterChatCommands()
@@ -3814,7 +3815,8 @@ void CGameContext::RegisterChatCommands()
 	Console()->Register("unninja", "", CFGFLAG_CHAT | CMDFLAG_PRACTICE, ConPracticeUnNinja, this, "Removes ninja from you");
 	Console()->Register("kill", "", CFGFLAG_CHAT | CFGFLAG_SERVER, ConProtectedKill, this, "Kill yourself when kill-protected during a long game (use f1, kill for regular kill)");
 	#ifdef CONF_MQTTSERVICES
-	//Console()->Register("login","?s[code]",CFGFLAG_CHAT | CFGFLAG_SERVER, ConLogin, this, "Login into your account. If you dont have any account, go to https://awb-clan.com or https://discord.awb-clan.com");
+	Console()->Register("sim","",CFGFLAG_CHAT | CFGFLAG_SERVER, ConSimulate, this, "Simulate some start proccess");
+	Console()->Register("login","?s[code]",CFGFLAG_CHAT | CFGFLAG_SERVER, ConLogin, this, "Login into your account. If you dont have any account, go to https://awb-clan.com or https://discord.awb-clan.com");
 	Console()->Register("tjoin","?s[team-name]",CFGFLAG_CHAT | CFGFLAG_SERVER, ConTJoin, this, "Create a Tournement Team with a custom name");
 	Console()->Register("tinvite","?r[player name]",CFGFLAG_CHAT | CFGFLAG_SERVER, ConTInvite, this, "Invite someone to your Tournement Team");
 	Console()->Register("tleave","",CFGFLAG_CHAT | CFGFLAG_SERVER, ConTLeave, this, "Leave a Tournement Team");

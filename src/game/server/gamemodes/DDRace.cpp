@@ -131,7 +131,7 @@ void CGameControllerDDRace::OnPlayerConnect(CPlayer *pPlayer)
 		GameServer()->SendChat(-1, TEAM_ALL, aBuf, -1, CGameContext::CHAT_SIX);
 #ifdef CONF_MQTTSERVICES
 		json response;
-		response["type"] = "join";
+		response["event"] = "join";
 		response["player"] = ClientId;
 		response["name"] = Server()->ClientName(ClientId);
 		GameServer()->Mqtt()->Publish(CHANNEL_INGAME, response);
@@ -149,7 +149,7 @@ void CGameControllerDDRace::OnPlayerDisconnect(CPlayer *pPlayer, const char *pRe
 	IGameController::OnPlayerDisconnect(pPlayer, pReason);
 #ifdef CONF_MQTTSERVICES
 		json response;
-		response["type"] = "leave";
+		response["event"] = "leave";
 		response["player"] = ClientId;
 		response["name"] = Server()->ClientName(ClientId);
 		GameServer()->Mqtt()->Publish(CHANNEL_INGAME, response);
