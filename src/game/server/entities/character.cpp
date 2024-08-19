@@ -2096,7 +2096,10 @@ void CCharacter::DDRaceTick()
 
 
 		if(m_FreezeTime == 1)
+		{
 			UnFreeze();
+			m_moveable = true;
+		}
 	}
 
 	HandleTuneLayer(); // need this before coretick
