@@ -1028,7 +1028,7 @@ bool CScoreWorker::ShowTop(IDbConnection *pSqlServer, const ISqlData *pGameData,
 
 	if(!g_Config.m_SvRegionalRankings)
 	{
-		str_copy(pResult->m_Data.m_aaMessages[Line], "----------------------------------------", sizeof(pResult->m_Data.m_aaMessages[Line]));
+		str_copy(pResult->m_Data.m_aaMessages[Line], "-----------------------------------------", sizeof(pResult->m_Data.m_aaMessages[Line]));
 		return !End;
 	}
 
@@ -1146,7 +1146,7 @@ bool CScoreWorker::ShowTeamTop5(IDbConnection *pSqlServer, const ISqlData *pGame
 		}
 	}
 
-	str_copy(paMessages[Line], "-------------------------------", sizeof(paMessages[Line]));
+	str_copy(paMessages[Line], "---------------------------------", sizeof(paMessages[Line]));
 	return false;
 }
 
@@ -1230,7 +1230,7 @@ bool CScoreWorker::ShowPlayerTeamTop5(IDbConnection *pSqlServer, const ISqlData 
 				break;
 			}
 		}
-		str_copy(paMessages[Line], "-------------------------------", sizeof(paMessages[Line]));
+		str_copy(paMessages[Line], "---------------------------------", sizeof(paMessages[Line]));
 	}
 	else
 	{
@@ -1352,7 +1352,7 @@ bool CScoreWorker::ShowTimes(IDbConnection *pSqlServer, const ISqlData *pGameDat
 	{
 		return true;
 	}
-	str_copy(paMessages[Line], "----------------------------------------------------", sizeof(paMessages[Line]));
+	str_copy(paMessages[Line], "-------------------------------------------", sizeof(paMessages[Line]));
 
 	return false;
 }
@@ -1560,7 +1560,8 @@ bool CScoreWorker::RandomUnfinishedMap(IDbConnection *pSqlServer, const ISqlData
 	}
 	else
 	{
-		str_copy(pResult->m_aMessage, "You have no more unfinished maps on this server!", sizeof(pResult->m_aMessage));
+		str_format(aBuf, sizeof(aBuf), "%s has no more unfinished maps on this server!", pData->m_aRequestingPlayer);
+		str_copy(pResult->m_aMessage, aBuf, sizeof(pResult->m_aMessage));
 	}
 	return false;
 }
